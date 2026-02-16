@@ -1,0 +1,16 @@
+name: release-please
+on:
+  push:
+    branches:
+      - main
+  # Run daily to keep the release PR date current
+  schedule:
+    - cron: '1 0 * * *'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  common:
+    uses: City-of-Helsinki/.github/.github/workflows/release-please.yml@main
