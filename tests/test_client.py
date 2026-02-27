@@ -10,6 +10,24 @@ from suomifi_messages.client import (
     SuomiFiClient,
 )
 from suomifi_messages.errors import SuomiFiError
+from suomifi_messages.schemas import (
+    Address,
+    AttachmentReference,
+    BodyFormat,
+    ElectronicPart,
+    MessageNotifications,
+    MessageServiceType,
+    NewPaperMailRecipient,
+    NewPaperMailSender,
+    PaperMailPart,
+    PostiMessaging,
+    PrintingAndEnvelopingService,
+    ReminderType,
+    ReplyAllowedBy,
+    SenderDetailsInNotifications,
+    UnreadMessageNotification,
+    Visibility,
+)
 
 
 @pytest.fixture
@@ -19,8 +37,48 @@ def client():
     return client
 
 
+@pytest.fixture
+def recipient_address():
+    """Standard recipient address for testing."""
+    return Address(
+        name="Matti Meikäläinen",
+        street_address="Esimerkkikatu 1",
+        zip_code="00100",
+        city="Helsinki",
+        country_code="FI",
+    )
+
+
+@pytest.fixture
+def sender_address():
+    """Standard sender address for testing."""
+    return Address(
+        name="Helsingin kaupunki",
+        street_address="Lähettäjänkatu 1",
+        zip_code="00100",
+        city="Helsinki",
+        country_code="FI",
+    )
+
+
+@pytest.fixture
+def posti_settings(settings):
+    """Configure Posti credentials for paper mail tests."""
+    settings.SUOMIFI_POSTI_EMAIL = "posti@example.com"
+    settings.SUOMIFI_POSTI_USERNAME = "123456"
+    settings.SUOMIFI_POSTI_PASSWORD = "1234"
+    return settings
+
+
+@pytest.fixture
+def service_id_settings(settings):
+    """Configure service ID for message sending tests."""
+    settings.SUOMIFI_SERVICE_ID = "test_service_123"
+    return settings
+
+
 class TestSuomiFiClientInit:
-    """Test SuomiFiClient initialization."""
+    """Test SuomiFiClient initialization and basic utilities."""
 
     @pytest.mark.parametrize(
         "env_type,expected_url",
@@ -47,11 +105,7 @@ class TestSuomiFiClientInit:
         with pytest.raises(
             TypeError, match='Invalid type. Allowed values are "prod" and "qa"'
         ):
-            SuomiFiClient(type="invalid")
-
-
-class TestSuomiFiClientProperties:
-    """Test SuomiFiClient properties."""
+            SuomiFiClient(type="invalid")  # type: ignore[arg-type]
 
     def test_hostname_property(self, client):
         """Test hostname property extracts hostname from URL."""
@@ -272,248 +326,228 @@ class TestSuomiFiClientCheckMailboxes:
         assert result == {"activeMailboxes": []}
 
 
-@pytest.mark.usefixtures("mock_settings")
-class TestSuomiFiClientSendMessage:
-    """Test SuomiFiClient message sending functionality."""
+@pytest.mark.usefixtures("service_id_settings")
+class TestSuomiFiClientSendElectronicMessage:
+    """Test SuomiFiClient electronic message sending functionality."""
 
-    @pytest.fixture
-    def mock_settings(self, settings):
-        """Configure Django settings for tests."""
-        settings.SUOMIFI_SERVICE_ID = "test_service_123"
-        settings.SUOMIFI_TEST_USER_SSN = "123456-789A"
-        return settings
-
-    def test_send_electronic_message_success(self, client, requests_mock):
+    def test_send_electronic_message_success(self, client, requests_mock, mocker):
         """Test sending electronic message successfully."""
+        # Mock builder to return simple structure for assertion
+        mock_electronic = {"title": "Test", "body": "Content"}
+
+        mocker.patch.object(
+            client, "build_electronic_message", return_value=mock_electronic
+        )
+
         requests_mock.post(
-            client.url("v1/messages/electronic"),
-            json={"messageId": "msg_123"},
+            client.url("v2/messages/electronic"),
+            json={"messageId": 12345},
             status_code=200,
         )
 
-        result = client.send_message(
+        result = client.send_electronic_message(
             title="Test Message",
             body="Test body content",
-            delivery_format="electronic",
+            body_format=BodyFormat.TEXT,
+            recipient_id="123456-789A",
         )
+
+        # Verify complete request structure
+        request_json = requests_mock.last_request.json()
+        assert request_json == {
+            "electronic": mock_electronic,
+            "sender": {"serviceId": "test_service_123"},
+            "recipient": {"id": "123456-789A"},
+            "externalId": request_json["externalId"],  # UUID, generated
+        }
 
         # Verify output
-        assert result == {"messageId": "msg_123"}
-        # Verify API contract
-        request_json = requests_mock.last_request.json()
-        assert request_json["electronic"]["title"] == "Test Message"
-        assert request_json["electronic"]["body"] == "Test body content"
-        assert request_json["sender"]["serviceId"] == "test_service_123"
-        assert request_json["recipient"]["id"] == "123456-789A"
+        message_id, external_id = result
+        assert message_id == 12345
+        assert external_id == request_json["externalId"]
 
-    def test_send_message_with_reply_to(self, client, requests_mock):
-        """Test sending message as reply to another message."""
+    def test_send_electronic_message_with_custom_ids(self, client, requests_mock):
+        """Test sending electronic message with custom service and recipient IDs."""
         requests_mock.post(
-            client.url("v1/messages/electronic"),
-            json={"messageId": "msg_reply_123"},
+            client.url("v2/messages/electronic"),
+            json={"messageId": 12345},
             status_code=200,
         )
+        custom_external_id = str(uuid.uuid4())
 
-        result = client.send_message(
-            title="Reply Message",
-            body="This is a reply",
-            reply_to="original_msg_456",
-        )
-
-        # Verify output
-        assert result == {"messageId": "msg_reply_123"}
-        # Verify API contract
-        request_json = requests_mock.last_request.json()
-        assert request_json["electronic"]["inReplyToMessageId"] == "original_msg_456"
-
-    @pytest.mark.parametrize(
-        "verifiable,expected_type",
-        [
-            (True, "Verifiable"),
-            (False, "Normal"),
-        ],
-    )
-    def test_send_message_verifiable(
-        self, verifiable, expected_type, client, requests_mock
-    ):
-        """Test sending message with verifiable flag."""
-        requests_mock.post(
-            client.url("v1/messages/electronic"),
-            json={"messageId": "msg_123"},
-            status_code=200,
-        )
-
-        result = client.send_message(
-            title="Test Message",
-            body="Test body",
-            verifiable=verifiable,
-        )
-
-        # Verify output
-        assert result == {"messageId": "msg_123"}
-        # Verify API contract
-        request_json = requests_mock.last_request.json()
-        assert request_json["electronic"]["messageServiceType"] == expected_type
-
-    @pytest.mark.parametrize(
-        "reply_allowed,expected_value",
-        [
-            (True, "Anyone"),
-            (False, "No one"),
-        ],
-    )
-    def test_send_message_reply_allowed(
-        self, client, reply_allowed, expected_value, requests_mock
-    ):
-        """Test sending message with reply_allowed flag."""
-        requests_mock.post(
-            client.url("v1/messages/electronic"),
-            json={"messageId": "msg_123"},
-            status_code=200,
-        )
-
-        result = client.send_message(
-            title="Test Message",
-            body="Test body",
-            reply_allowed=reply_allowed,
-        )
-
-        # Verify output
-        assert result == {"messageId": "msg_123"}
-        # Verify API contract
-        request_json = requests_mock.last_request.json()
-        assert request_json["electronic"]["replyAllowedBy"] == expected_value
-
-    def test_send_electronic_only_message(self, client, requests_mock):
-        """Test sending electronic-only message."""
-        requests_mock.post(
-            client.url("v1/messages/electronic"),
-            json={"messageId": "msg_123"},
-            status_code=200,
-        )
-
-        result = client.send_message(
-            title="Electronic Message",
-            body="Electronic content",
-            delivery_format="electronic",
-        )
-
-        # Verify output
-        assert result == {"messageId": "msg_123"}
-        # Verify API contract
-        request_json = requests_mock.last_request.json()
-        assert "electronic" in request_json
-        assert "paperMail" not in request_json
-
-    def test_send_postal_message(self, client, requests_mock):
-        """Test sending postal message."""
-        requests_mock.post(
-            client.url("v1/messages"),
-            json={"messageId": "msg_postal_123"},
-            status_code=200,
-        )
-
-        result = client.send_message(
-            title="Postal Message",
-            body="Postal content",
-            delivery_format="postal",
-        )
-
-        # Verify output
-        assert result == {"messageId": "msg_postal_123"}
-        # Verify API contract
-        request_json = requests_mock.last_request.json()
-        assert "electronic" in request_json
-        assert "paperMail" in request_json
-
-    def test_send_message_both_formats(self, client, requests_mock):
-        """Test sending message in both electronic and postal formats."""
-        requests_mock.post(
-            client.url("v1/messages"),
-            json={"messageId": "msg_both_123"},
-            status_code=200,
-        )
-
-        result = client.send_message(
-            title="Dual Format Message",
-            body="Both formats content",
-            delivery_format="both",
-        )
-
-        # Verify output
-        assert result == {"messageId": "msg_both_123"}
-        # Verify API contract
-        request_json = requests_mock.last_request.json()
-        assert "electronic" in request_json
-        assert "paperMail" in request_json
-
-    def test_send_message_with_custom_ids(self, client, requests_mock):
-        """Test sending message with custom service and recipient IDs."""
-        requests_mock.post(
-            client.url("v1/messages/electronic"),
-            json={"messageId": "msg_custom_123"},
-            status_code=200,
-        )
-        custom_internal_id = str(uuid.uuid4())
-
-        result = client.send_message(
+        result = client.send_electronic_message(
             title="Custom IDs Message",
             body="Custom IDs test",
+            body_format=BodyFormat.TEXT,
             service_id="custom_service_456",
             recipient_id="custom_recipient_789",
-            internal_id=custom_internal_id,
+            external_id=custom_external_id,
         )
 
-        # Verify output
-        assert result == {"messageId": "msg_custom_123"}
-        # Verify API contract
+        message_id, external_id = result
+        assert message_id == 12345
+        assert external_id == custom_external_id
         request_json = requests_mock.last_request.json()
         assert request_json["sender"]["serviceId"] == "custom_service_456"
         assert request_json["recipient"]["id"] == "custom_recipient_789"
-        assert request_json["externalId"] == custom_internal_id
+        assert request_json["externalId"] == custom_external_id
 
-    def test_send_message_invalid_delivery_format(self, client):
-        """Test that invalid delivery format raises ValueError."""
-        with pytest.raises(
-            ValueError, match='Parameter "delivery_format" must be one of'
-        ):
-            client.send_message(
-                title="Test",
-                body="Test",
-                delivery_format="invalid",
-            )
-
-    def test_send_message_failure(self, client, requests_mock):
-        """Test message send failure."""
+    def test_send_electronic_message_failure(self, client, requests_mock):
+        """Test electronic message send failure."""
         requests_mock.post(
-            client.url("v1/messages/electronic"),
+            client.url("v2/messages/electronic"),
             json={"error": "Invalid message format"},
             status_code=400,
         )
 
-        with pytest.raises(Exception, match="Message send request failed"):
-            client.send_message(title="Test", body="Test")
+        with pytest.raises(
+            SuomiFiError, match="Electronic message send request failed"
+        ):
+            client.send_electronic_message(
+                title="Test",
+                body="Test",
+                body_format=BodyFormat.TEXT,
+                recipient_id="123456-789A",
+            )
 
-    def test_send_message_with_attachment_ids(self, client, requests_mock):
-        """Test sending message with attachment IDs."""
+    def test_send_electronic_message_missing_service_id(self, settings):
+        """Test that ValueError is raised when service_id is missing."""
+        settings.SUOMIFI_SERVICE_ID = None
+
+        client = SuomiFiClient()
+        client.base_url = "https://foo-bar.baz.test/"
+
+        with pytest.raises(ValueError, match="Suomi.fi service_id is not configured."):
+            client.send_electronic_message(
+                title="Test",
+                body="Test",
+                body_format=BodyFormat.TEXT,
+                recipient_id="123456-789A",
+            )
+
+
+@pytest.mark.usefixtures("service_id_settings", "posti_settings")
+class TestSuomiFiClientSendMultichannelMessage:
+    """Test SuomiFiClient multichannel message sending functionality."""
+
+    def test_send_multichannel_message_success(
+        self, client, requests_mock, recipient_address, sender_address, mocker
+    ):
+        """Test sending multichannel message successfully."""
+        # Mock builders to return simple structures for assertion
+        mock_electronic = {"title": "Test", "body": "Content"}
+        mock_paper = {"attachments": [{"attachmentId": "att_1"}]}
+
+        mocker.patch.object(
+            client, "build_electronic_message", return_value=mock_electronic
+        )
+        mocker.patch.object(client, "build_paper_mail_message", return_value=mock_paper)
+
         requests_mock.post(
-            client.url("v1/messages/electronic"),
-            json={"messageId": "msg_123"},
+            client.url("v2/messages"),
+            json={"messageId": 12345},
             status_code=200,
         )
 
-        result = client.send_message(
-            title="Message with attachments",
-            body="Body",
-            attachment_ids=["att_1", "att_2"],
+        result = client.send_multichannel_message(
+            title="Test Message",
+            body="Test body content",
+            body_format=BodyFormat.TEXT,
+            recipient_id="123456-789A",
+            recipient_address=recipient_address,
+            sender_address=sender_address,
+            paper_mail_attachment_id="att_paper_1",
+        )
+
+        # Verify complete request structure
+        request_json = requests_mock.last_request.json()
+        assert request_json == {
+            "electronic": mock_electronic,
+            "paperMail": mock_paper,
+            "sender": {"serviceId": "test_service_123"},
+            "recipient": {"id": "123456-789A"},
+            "externalId": request_json["externalId"],  # UUID, generated
+        }
+
+        # Verify output
+        message_id, external_id = result
+        assert message_id == 12345
+        assert external_id == request_json["externalId"]
+
+    def test_send_multichannel_message_with_custom_ids(
+        self, client, requests_mock, recipient_address, sender_address
+    ):
+        """Test sending multichannel message with custom service and recipient IDs."""
+        requests_mock.post(
+            client.url("v2/messages"),
+            json={"messageId": 12345},
+            status_code=200,
+        )
+        custom_external_id = str(uuid.uuid4())
+
+        result = client.send_multichannel_message(
+            title="Custom IDs Message",
+            body="Custom IDs test",
+            body_format=BodyFormat.TEXT,
+            service_id="custom_service_456",
+            recipient_id="custom_recipient_789",
+            recipient_address=recipient_address,
+            sender_address=sender_address,
+            paper_mail_attachment_id="att_paper_1",
+            external_id=custom_external_id,
         )
 
         # Verify output
-        assert result == {"messageId": "msg_123"}
-        # Verify API contract
+        message_id, external_id = result
+        assert message_id == 12345
+        assert external_id == custom_external_id
+
+        # Verify custom IDs are passed through (send method responsibility)
         request_json = requests_mock.last_request.json()
-        # Note: In the implementation, attachments is set to empty list
-        assert request_json["electronic"]["attachments"] == []
+        assert request_json["sender"]["serviceId"] == "custom_service_456"
+        assert request_json["recipient"]["id"] == "custom_recipient_789"
+        assert request_json["externalId"] == custom_external_id
+
+    def test_send_multichannel_message_missing_service_id(
+        self, settings, recipient_address, sender_address
+    ):
+        """Test that ValueError is raised when service_id is missing."""
+        settings.SUOMIFI_SERVICE_ID = None
+
+        client = SuomiFiClient()
+        client.base_url = "https://foo-bar.baz.test/"
+
+        with pytest.raises(ValueError, match="Suomi.fi service_id is not configured."):
+            client.send_multichannel_message(
+                title="Test",
+                body="Test",
+                body_format=BodyFormat.TEXT,
+                recipient_id="123456-789A",
+                recipient_address=recipient_address,
+                sender_address=sender_address,
+                paper_mail_attachment_id="att_1",
+            )
+
+    def test_send_multichannel_message_failure(
+        self, client, requests_mock, recipient_address, sender_address
+    ):
+        """Test multichannel message send failure."""
+        requests_mock.post(
+            client.url("v2/messages"),
+            json={"error": "Invalid message format"},
+            status_code=400,
+        )
+
+        with pytest.raises(SuomiFiError, match="Message send request failed"):
+            client.send_multichannel_message(
+                title="Test",
+                body="Test",
+                body_format=BodyFormat.TEXT,
+                recipient_id="123456-789A",
+                recipient_address=recipient_address,
+                sender_address=sender_address,
+                paper_mail_attachment_id="att_1",
+            )
 
 
 class TestSuomiFiClientGetEvents:
@@ -573,7 +607,7 @@ class TestSuomiFiClientGetMessage:
         requests_mock.get(
             client.url("v1/messages/msg_123"),
             json={
-                "messageId": "msg_123",
+                "messageId": 12345,
                 "title": "Test Message",
                 "body": "Message content",
             },
@@ -582,7 +616,7 @@ class TestSuomiFiClientGetMessage:
 
         result = client.get_message("msg_123")
 
-        assert result["messageId"] == "msg_123"
+        assert result["messageId"] == 12345
         assert result["title"] == "Test Message"
 
     def test_get_message_raises_on_error(self, client, requests_mock):
@@ -604,7 +638,7 @@ class TestSuomiFiClientGetMessageState:
         requests_mock.get(
             client.url("v1/messages/msg_123/state"),
             json={
-                "messageId": "msg_123",
+                "messageId": 12345,
                 "state": "delivered",
                 "timestamp": "2026-02-13T10:00:00Z",
             },
@@ -613,7 +647,7 @@ class TestSuomiFiClientGetMessageState:
 
         result = client.get_message_state("msg_123")
 
-        assert result["messageId"] == "msg_123"
+        assert result["messageId"] == 12345
         assert result["state"] == "delivered"
 
     def test_get_message_state_raises_on_error(self, client, requests_mock):
@@ -672,3 +706,360 @@ class TestSuomiFiError:
 
         assert isinstance(error, Exception)
         assert str(error) == "Test error"
+
+
+class TestBuildElectronicMessage:
+    """Test electronic message builder."""
+
+    @pytest.mark.parametrize("body_format", [BodyFormat.TEXT, BodyFormat.MARKDOWN])
+    def test_build_electronic_message_with_body_format(self, client, body_format):
+        """Build electronic message with different body formats."""
+        electronic_msg = client.build_electronic_message(
+            title="Test Title",
+            body="Test Body",
+            body_format=body_format,
+            attachment_ids=[],
+            verifiable=False,
+            reply_allowed=False,
+            reply_to=None,
+            reminder=True,
+        )
+
+        expected = ElectronicPart(
+            attachments=[],
+            body="Test Body",
+            body_format=body_format,
+            message_service_type=MessageServiceType.NORMAL,
+            notifications=MessageNotifications(
+                sender_details_in_notifications=SenderDetailsInNotifications.ORGANISATION_AND_SERVICE_NAME,
+                unread_message_notification=UnreadMessageNotification(
+                    reminder=ReminderType.DEFAULT_REMINDER
+                ),
+            ),
+            reply_allowed_by=ReplyAllowedBy.NO_ONE,
+            title="Test Title",
+            visibility=Visibility.NORMAL,
+        )
+        assert electronic_msg == expected
+
+    def test_build_electronic_message_with_verifiable(self, client):
+        """Build verifiable electronic message."""
+        electronic_msg = client.build_electronic_message(
+            title="Test Title",
+            body="Test Body",
+            body_format=BodyFormat.TEXT,
+            attachment_ids=[],
+            verifiable=True,
+            reply_allowed=False,
+            reply_to=None,
+            reminder=True,
+        )
+
+        expected = ElectronicPart(
+            attachments=[],
+            body="Test Body",
+            body_format=BodyFormat.TEXT,
+            message_service_type=MessageServiceType.VERIFIABLE,
+            notifications=MessageNotifications(
+                sender_details_in_notifications=SenderDetailsInNotifications.ORGANISATION_AND_SERVICE_NAME,
+                unread_message_notification=UnreadMessageNotification(
+                    reminder=ReminderType.DEFAULT_REMINDER
+                ),
+            ),
+            reply_allowed_by=ReplyAllowedBy.NO_ONE,
+            title="Test Title",
+            visibility=Visibility.NORMAL,
+        )
+        assert electronic_msg == expected
+
+    def test_build_electronic_message_with_reply_allowed(self, client):
+        """Build electronic message with replies allowed."""
+        electronic_msg = client.build_electronic_message(
+            title="Test Title",
+            body="Test Body",
+            body_format=BodyFormat.TEXT,
+            attachment_ids=[],
+            verifiable=False,
+            reply_allowed=True,
+            reply_to=None,
+            reminder=True,
+        )
+
+        expected = ElectronicPart(
+            attachments=[],
+            body="Test Body",
+            body_format=BodyFormat.TEXT,
+            message_service_type=MessageServiceType.NORMAL,
+            notifications=MessageNotifications(
+                sender_details_in_notifications=SenderDetailsInNotifications.ORGANISATION_AND_SERVICE_NAME,
+                unread_message_notification=UnreadMessageNotification(
+                    reminder=ReminderType.DEFAULT_REMINDER
+                ),
+            ),
+            reply_allowed_by=ReplyAllowedBy.ANYONE,
+            title="Test Title",
+            visibility=Visibility.NORMAL,
+        )
+        assert electronic_msg == expected
+
+    def test_build_electronic_message_with_no_reminders(self, client):
+        """Build electronic message with reminders disabled."""
+        electronic_msg = client.build_electronic_message(
+            title="Test Title",
+            body="Test Body",
+            body_format=BodyFormat.TEXT,
+            attachment_ids=[],
+            verifiable=False,
+            reply_allowed=False,
+            reply_to=None,
+            reminder=False,
+        )
+
+        expected = ElectronicPart(
+            attachments=[],
+            body="Test Body",
+            body_format=BodyFormat.TEXT,
+            message_service_type=MessageServiceType.NORMAL,
+            notifications=MessageNotifications(
+                sender_details_in_notifications=SenderDetailsInNotifications.ORGANISATION_AND_SERVICE_NAME,
+                unread_message_notification=UnreadMessageNotification(
+                    reminder=ReminderType.NO_REMINDERS
+                ),
+            ),
+            reply_allowed_by=ReplyAllowedBy.NO_ONE,
+            title="Test Title",
+            visibility=Visibility.NORMAL,
+        )
+        assert electronic_msg == expected
+
+    def test_build_electronic_message_with_attachments(self, client):
+        """Build electronic message with attachments."""
+        electronic_msg = client.build_electronic_message(
+            title="Test Title",
+            body="Test Body",
+            body_format=BodyFormat.TEXT,
+            attachment_ids=["att_1", "att_2"],
+            verifiable=False,
+            reply_allowed=False,
+            reply_to=None,
+            reminder=True,
+        )
+
+        expected = ElectronicPart(
+            attachments=[
+                AttachmentReference(attachment_id="att_1"),
+                AttachmentReference(attachment_id="att_2"),
+            ],
+            body="Test Body",
+            body_format=BodyFormat.TEXT,
+            message_service_type=MessageServiceType.NORMAL,
+            notifications=MessageNotifications(
+                sender_details_in_notifications=SenderDetailsInNotifications.ORGANISATION_AND_SERVICE_NAME,
+                unread_message_notification=UnreadMessageNotification(
+                    reminder=ReminderType.DEFAULT_REMINDER
+                ),
+            ),
+            reply_allowed_by=ReplyAllowedBy.NO_ONE,
+            title="Test Title",
+            visibility=Visibility.NORMAL,
+        )
+        assert electronic_msg == expected
+
+    def test_build_electronic_message_with_reply_to(self, client):
+        """Build electronic message as a reply."""
+        electronic_msg = client.build_electronic_message(
+            title="Re: Test Title",
+            body="Reply Body",
+            body_format=BodyFormat.TEXT,
+            attachment_ids=[],
+            verifiable=False,
+            reply_allowed=False,
+            reply_to=12345,
+            reminder=True,
+        )
+
+        expected = ElectronicPart(
+            attachments=[],
+            body="Reply Body",
+            body_format=BodyFormat.TEXT,
+            in_reply_to_message_id=12345,
+            message_service_type=MessageServiceType.NORMAL,
+            notifications=MessageNotifications(
+                sender_details_in_notifications=SenderDetailsInNotifications.ORGANISATION_AND_SERVICE_NAME,
+                unread_message_notification=UnreadMessageNotification(
+                    reminder=ReminderType.DEFAULT_REMINDER
+                ),
+            ),
+            reply_allowed_by=ReplyAllowedBy.NO_ONE,
+            title="Re: Test Title",
+            visibility=Visibility.NORMAL,
+        )
+        assert electronic_msg == expected
+
+
+@pytest.mark.usefixtures("posti_settings")
+class TestBuildPaperMailMessage:
+    """Test paper mail message builder."""
+
+    def test_build_paper_mail_missing_credentials_raises_error(
+        self, client, settings, recipient_address, sender_address
+    ):
+        """Verify error is raised when Posti credentials are not configured."""
+        # Override fixture to test missing credentials
+        settings.SUOMIFI_POSTI_EMAIL = ""
+        settings.SUOMIFI_POSTI_USERNAME = ""
+        settings.SUOMIFI_POSTI_PASSWORD = ""
+
+        with pytest.raises(SuomiFiError, match="Paper mail requires Posti credentials"):
+            client.build_paper_mail_message(
+                recipient_address=recipient_address,
+                sender_address=sender_address,
+                attachment_id="",
+                verifiable=False,
+            )
+
+    def test_build_paper_mail_with_minimal_args(
+        self, client, recipient_address, sender_address
+    ):
+        """Build paper mail with only required address info."""
+        paper_mail = client.build_paper_mail_message(
+            recipient_address=recipient_address,
+            sender_address=sender_address,
+            attachment_id="att_1",
+            verifiable=False,
+        )
+
+        expected = PaperMailPart(
+            color_printing=True,
+            create_address_page=True,
+            attachments=[AttachmentReference(attachment_id="att_1")],
+            message_service_type=MessageServiceType.NORMAL,
+            recipient=NewPaperMailRecipient(
+                address=recipient_address,
+            ),
+            sender=NewPaperMailSender(
+                address=sender_address,
+            ),
+            printing_and_enveloping_service=PrintingAndEnvelopingService(
+                posti_messaging=PostiMessaging(
+                    contact_details={"email": "posti@example.com"},
+                    password="1234",
+                    username="123456",
+                ),
+            ),
+            rotate_landscape_pages=False,
+            two_sided_printing=False,
+        )
+        assert paper_mail == expected
+
+    def test_build_paper_mail_with_verifiable(
+        self, client, recipient_address, sender_address
+    ):
+        """Build verifiable paper mail message."""
+        paper_mail = client.build_paper_mail_message(
+            recipient_address=recipient_address,
+            sender_address=sender_address,
+            attachment_id="att_1",
+            verifiable=True,
+        )
+
+        expected = PaperMailPart(
+            color_printing=True,
+            create_address_page=True,
+            attachments=[AttachmentReference(attachment_id="att_1")],
+            message_service_type=MessageServiceType.VERIFIABLE,
+            recipient=NewPaperMailRecipient(
+                address=recipient_address,
+            ),
+            sender=NewPaperMailSender(
+                address=sender_address,
+            ),
+            printing_and_enveloping_service=PrintingAndEnvelopingService(
+                posti_messaging=PostiMessaging(
+                    contact_details={"email": "posti@example.com"},
+                    password="1234",
+                    username="123456",
+                ),
+            ),
+            rotate_landscape_pages=False,
+            two_sided_printing=False,
+        )
+        assert paper_mail == expected
+
+    def test_build_paper_mail_with_attachments(
+        self, client, recipient_address, sender_address
+    ):
+        """Build paper mail with attachments."""
+        paper_mail = client.build_paper_mail_message(
+            recipient_address=recipient_address,
+            sender_address=sender_address,
+            attachment_id="att_1",
+            verifiable=False,
+        )
+
+        expected = PaperMailPart(
+            color_printing=True,
+            create_address_page=True,
+            attachments=[AttachmentReference(attachment_id="att_1")],
+            message_service_type=MessageServiceType.NORMAL,
+            recipient=NewPaperMailRecipient(
+                address=recipient_address,
+            ),
+            sender=NewPaperMailSender(
+                address=sender_address,
+            ),
+            printing_and_enveloping_service=PrintingAndEnvelopingService(
+                posti_messaging=PostiMessaging(
+                    contact_details={"email": "posti@example.com"},
+                    password="1234",
+                    username="123456",
+                ),
+            ),
+            rotate_landscape_pages=False,
+            two_sided_printing=False,
+        )
+        assert paper_mail == expected
+
+    def test_build_paper_mail_with_additional_name(
+        self, client, recipient_address, sender_address
+    ):
+        """Build paper mail with additional address line."""
+        # Create a modified address with additional_name
+        recipient_with_co = Address(
+            name=recipient_address.name,
+            street_address=recipient_address.street_address,
+            zip_code=recipient_address.zip_code,
+            city=recipient_address.city,
+            country_code=recipient_address.country_code,
+            additional_name="c/o Virtanen",
+        )
+
+        paper_mail = client.build_paper_mail_message(
+            recipient_address=recipient_with_co,
+            sender_address=sender_address,
+            attachment_id="att_1",
+            verifiable=False,
+        )
+
+        expected = PaperMailPart(
+            color_printing=True,
+            create_address_page=True,
+            attachments=[AttachmentReference(attachment_id="att_1")],
+            message_service_type=MessageServiceType.NORMAL,
+            recipient=NewPaperMailRecipient(
+                address=recipient_with_co,
+            ),
+            sender=NewPaperMailSender(
+                address=sender_address,
+            ),
+            printing_and_enveloping_service=PrintingAndEnvelopingService(
+                posti_messaging=PostiMessaging(
+                    contact_details={"email": "posti@example.com"},
+                    password="1234",
+                    username="123456",
+                ),
+            ),
+            rotate_landscape_pages=False,
+            two_sided_printing=False,
+        )
+        assert paper_mail == expected
