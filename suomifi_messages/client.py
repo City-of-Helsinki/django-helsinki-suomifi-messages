@@ -7,6 +7,29 @@ import requests
 from django.conf import settings
 
 from suomifi_messages.errors import SuomiFiError
+from suomifi_messages.schemas import (
+    Address,
+    AttachmentReference,
+    BodyFormat,
+    ElectronicMessageRequestBody,
+    ElectronicPart,
+    MessageNotifications,
+    MessageServiceType,
+    MultichannelMessageRequestBody,
+    NewPaperMailRecipient,
+    NewPaperMailSender,
+    PaperMailPart,
+    PostiMessaging,
+    PrintingAndEnvelopingService,
+    Recipient,
+    ReminderType,
+    ReplyAllowedBy,
+    Sender,
+    SenderDetailsInNotifications,
+    UnreadMessageNotification,
+    Visibility,
+    dataclass_to_dict,
+)
 
 logger = logging.getLogger("suomi-fi-messages")
 
@@ -104,123 +127,286 @@ class SuomiFiClient:
 
         return response.json()
 
-    def check_mailboxes(self, hetu_list):
-        mailbox_activity_request = {"endUsers": [{"id": x} for x in hetu_list]}
-
-        response = self.post("/v1/mailboxes/active", json=mailbox_activity_request)
-
-        return response.json()
-
-    def send_message(
+    def build_paper_mail_message(
         self,
-        title,
-        body,
-        service_id=None,
-        recipient_id=None,
-        reply_to=None,
-        attachment_ids=None,
-        delivery_format: typing.Literal["electronic", "postal", "both"] = "electronic",
-        internal_id=None,
-        verifiable=False,
-        reply_allowed=False,
-    ):
-        if delivery_format not in ["electronic", "postal", "both"]:
+        recipient_address: Address,
+        sender_address: Address,
+        attachment_id: str,
+        verifiable: bool,
+    ) -> PaperMailPart:
+        """
+        Build paper mail message structure.
+
+        :param recipient_address: Recipient address information
+        :param sender_address: Sender address information
+        :param attachment_id: Attachment ID
+        :param verifiable: Whether this is a verifiable message
+        :returns: PaperMailPart dataclass ready for API request
+        :rtype: PaperMailPart
+        :raises SuomiFiError: If Posti credentials are not configured
+        """
+        # Get Posti credentials dynamically (they may be set in tests)
+        posti_email = getattr(settings, "SUOMIFI_POSTI_EMAIL", "")
+        posti_username = getattr(settings, "SUOMIFI_POSTI_USERNAME", "")
+        posti_password = getattr(settings, "SUOMIFI_POSTI_PASSWORD", "")
+
+        # Verify Posti credentials are configured
+        if not all([posti_email, posti_username, posti_password]):
+            raise SuomiFiError(
+                "Paper mail requires Posti credentials. Please configure "
+                "SUOMIFI_POSTI_EMAIL, SUOMIFI_POSTI_USERNAME, and "
+                "SUOMIFI_POSTI_PASSWORD in your Django settings. "
+                "See: https://kehittajille.suomi.fi/services/messages/deployment/"
+                "deployment-of-the-printing-enveloping-and-distribution-service"
+            )
+
+        paper_mail = PaperMailPart(
+            color_printing=True,
+            create_address_page=True,
+            attachments=[AttachmentReference(attachment_id=attachment_id)],
+            message_service_type=MessageServiceType.VERIFIABLE
+            if verifiable
+            else MessageServiceType.NORMAL,
+            printing_and_enveloping_service=PrintingAndEnvelopingService(
+                posti_messaging=PostiMessaging(
+                    contact_details={"email": posti_email},
+                    password=posti_password,
+                    username=posti_username,
+                ),
+            ),
+            recipient=NewPaperMailRecipient(address=recipient_address),
+            rotate_landscape_pages=False,
+            sender=NewPaperMailSender(address=sender_address),
+            two_sided_printing=False,
+        )
+
+        return paper_mail
+
+    def build_electronic_message(
+        self,
+        title: str,
+        body: str,
+        body_format: BodyFormat,
+        verifiable: bool,
+        reply_allowed: bool,
+        reminder: bool,
+        reply_to: int | None = None,
+        attachment_ids: list[str] | None = None,
+    ) -> ElectronicPart:
+        """
+        Build electronic message structure.
+
+        :param title: Message title
+        :param body: Message body content
+        :param body_format: Body format (TEXT or MARKDOWN)
+        :param verifiable: Whether this is a verifiable message
+        :param reply_allowed: Whether recipient can reply
+        :param reminder: Whether to send unread message reminders
+        :param reply_to: Message ID to reply to (optional)
+        :param attachment_ids: List of attachment IDs (optional)
+        :returns: ElectronicPart dataclass ready for API request
+        :rtype: ElectronicPart
+        """
+        attachment_ids = attachment_ids or []
+        electronic_msg = ElectronicPart(
+            attachments=[
+                AttachmentReference(attachment_id=attachment_id)
+                for attachment_id in attachment_ids
+            ],
+            body=body,
+            body_format=body_format,
+            message_service_type=MessageServiceType.VERIFIABLE
+            if verifiable
+            else MessageServiceType.NORMAL,
+            notifications=MessageNotifications(
+                sender_details_in_notifications=SenderDetailsInNotifications.ORGANISATION_AND_SERVICE_NAME,
+                unread_message_notification=UnreadMessageNotification(
+                    reminder=ReminderType.DEFAULT_REMINDER
+                    if reminder
+                    else ReminderType.NO_REMINDERS
+                ),
+            ),
+            reply_allowed_by=ReplyAllowedBy.ANYONE
+            if reply_allowed
+            else ReplyAllowedBy.NO_ONE,
+            title=title,
+            visibility=Visibility.NORMAL,
+            in_reply_to_message_id=reply_to,
+        )
+
+        return electronic_msg
+
+    def send_electronic_message(
+        self,
+        title: str,
+        body: str,
+        body_format: BodyFormat,
+        recipient_id: str,
+        service_id: str | None = None,
+        reply_to: int | None = None,
+        attachment_ids: list[str] | None = None,
+        external_id: str | None = None,
+        verifiable: bool = False,
+        reply_allowed: bool = False,
+        reminder: bool = True,
+    ) -> tuple[int, str]:
+        """
+        Send an electronic-only message to a Suomi.fi Messages user.
+
+        This sends a message that is delivered electronically to recipients with
+        active Suomi.fi Messages mailboxes. Use this endpoint to send new messages
+        or replies to messages from end users.
+
+        :param title: Message title
+        :param body: Message body content
+        :param body_format: Body format (TEXT or MARKDOWN)
+        :param recipient_id: Recipient ID (SSN or business ID)
+        :param service_id: Service ID, uses settings.SUOMIFI_SERVICE_ID if not provided
+        :param reply_to: Message ID to reply to (optional)
+        :param attachment_ids: List of attachment IDs (optional)
+        :param external_id: External ID for idempotency, generates UUID if
+            not provided
+        :param verifiable: Whether to send as verifiable message
+        :param reply_allowed: Whether recipient can reply
+        :param reminder: Whether to send unread message reminders
+        :returns: Tuple of (message_id, external_id) where message_id is the
+            Suomi.fi unique identifier (int) for tracking/replies, and external_id
+            is your system's identifier (str) used for idempotency
+        :rtype: tuple[int, str]
+        :raises ValueError: If service_id is not provided or configured
+        :raises SuomiFiError: If message send fails (e.g., mailbox not active,
+            replied-to message not found)
+        """
+        if not (
+            service_id := service_id or getattr(settings, "SUOMIFI_SERVICE_ID", "")
+        ):
             raise ValueError(
-                'Parameter "delivery_format" must be one of the following: '
-                f'"electronic", "postal", "both" (got: {delivery_format})'
+                "Suomi.fi service_id is not configured. Pass service_id explicitly "
+                "to this method or define settings.SUOMIFI_SERVICE_ID in your "
+                "Django settings."
             )
         attachment_ids = attachment_ids or []
-        service_id = service_id or settings.SUOMIFI_SERVICE_ID
-        recipient_id = recipient_id or settings.SUOMIFI_TEST_USER_SSN
-        internal_id = internal_id or str(uuid.uuid4())
+        external_id = external_id or str(uuid.uuid4())
 
-        electronic_msg = {
-            "body": body,
-            # "attachments": {'fileId': [ x for x in attachment_ids ]},
-            "attachments": [],
-            "messageServiceType": "Verifiable" if verifiable else "Normal",
-            "replyAllowedBy": "Anyone" if reply_allowed else "No one",
-            "title": title,
-            "notifications": {
-                "customisedNewMessageNotification": {
-                    "title": {
-                        "fi": "string",
-                        "sv": "string",
-                        "en": "string",
-                    },
-                    "content": {
-                        "fi": "string",
-                        "sv": "string",
-                        "en": "string",
-                    },
-                },
-                "unreadMessageNotification": {
-                    "reminder": "Default reminder",
-                },
-                "senderDetailsInNotifications": "Organisation and service name",
-            },
-            "visibility": "Normal",
-        }
+        # Build electronic message
+        electronic_msg = self.build_electronic_message(
+            title=title,
+            body=body,
+            body_format=body_format,
+            attachment_ids=attachment_ids,
+            verifiable=verifiable,
+            reply_allowed=reply_allowed,
+            reply_to=reply_to,
+            reminder=reminder,
+        )
 
-        if reply_to:
-            electronic_msg["inReplyToMessageId"] = reply_to
+        # Build request body
+        payload = ElectronicMessageRequestBody(
+            electronic=electronic_msg,
+            external_id=external_id,
+            recipient=Recipient(id=recipient_id),
+            sender=Sender(service_id=service_id),
+        )
 
-        paper_msg = {
-            "colorPrinting": True,
-            "createCoverPage": True,
-            "files": {"fileId": [x for x in attachment_ids]},
-            "messageServiceType": "Verifiable" if verifiable else "Normal",
-            "printingAndEnvelopingService": {
-                "postiMessaging": {
-                    "contactDetails": {"email": "vastaanottajan@spostiosoite.example"},
-                    "password": "posti_username_placeholder",
-                    "username": "posti_password_placeholder",
-                },
-                "costPool": "string",
-            },
-            "recipient": {
-                "address": {
-                    "additionalName": "Lisäosoiterivi",
-                    "city": "Helsinki",
-                    "countryCode": "FI",
-                    "name": "Paperipostin vastaanottaja",
-                    "streetAddress": "Paperipostin osoite",
-                    "zipCode": "Paperipostin postinumero",
-                }
-            },
-            "sender": {
-                "address": {
-                    "additionalName": "Lisälähettäjä",
-                    "city": "Helsinki",
-                    "countryCode": "FI",
-                    "name": "Helsingin kaupunki",
-                    "streetAddress": "Työpajankatu 8",
-                    "zipCode": "00100",
-                },
-            },
-        }
+        logger.debug("Sending electronic message to /v2/messages/electronic")
 
-        msg_request_head = {
-            "externalId": internal_id,  # Identifier in some internal system of our own, checked for duplicates by suomi.fi  # noqa: E501
-            "recipient": {
-                "id": recipient_id
-            },  # HETU or Business ID ("Y-tunnus"?), does not affect paper mail at all
-            "sender": {"serviceId": service_id},
-        }
+        response = self.post("/v2/messages/electronic", json=dataclass_to_dict(payload))
 
-        # Electronic message format is always required
-        msg_request_head["electronic"] = electronic_msg
+        if response.status_code != requests.codes.ok:
+            logger.debug(
+                "Electronic message send request failed with status code "
+                f"{response.status_code}"
+            )
+            logger.debug(response.json())
+            raise SuomiFiError("Electronic message send request failed")
 
-        if delivery_format == "postal" or delivery_format == "both":
-            msg_request_head["paperMail"] = paper_msg
-            path = "/v1/messages"
-        else:
-            # This endpoint accepts messages without paperMail
-            path = "/v1/messages/electronic"
+        return response.json()["messageId"], external_id
 
-        logger.debug(f"Sending message {msg_request_head}")
+    def send_multichannel_message(
+        self,
+        title: str,
+        body: str,
+        body_format: BodyFormat,
+        recipient_id: str,
+        recipient_address: Address,
+        sender_address: Address,
+        paper_mail_attachment_id: str,
+        service_id: str | None = None,
+        reply_to: int | None = None,
+        electronic_attachment_ids: list[str] | None = None,
+        external_id: str | None = None,
+        verifiable: bool = False,
+        reply_allowed: bool = False,
+        reminder: bool = True,
+    ) -> tuple[int, str]:
+        """
+        Send a multichannel message that adapts to recipient's mailbox state.
 
-        response = self.post(path, json=msg_request_head)
+        The message will be delivered either electronically OR as paper mail
+        depending on whether the recipient has an active Suomi.fi Messages mailbox.
+        You must provide content for both delivery channels.
+
+        :param title: Message title (for both electronic and paper mail)
+        :param body: Message body content (for electronic message)
+        :param body_format: Body format (TEXT or MARKDOWN)
+        :param recipient_id: Recipient ID (SSN or business ID)
+        :param recipient_address: Postal address for paper mail delivery
+        :param sender_address: Sender's postal address for paper mail
+        :param paper_mail_attachment_id: Attachment ID for paper mail (required)
+        :param service_id: Service ID, uses settings.SUOMIFI_SERVICE_ID if not provided
+        :param reply_to: Message ID to reply to (optional)
+        :param electronic_attachment_ids: List of attachment IDs for electronic message
+            (optional)
+        :param external_id: External ID for idempotency, generates UUID if not provided
+        :param verifiable: Whether to send as verifiable message
+        :param reply_allowed: Whether recipient can reply (electronic only)
+        :param reminder: Whether to send unread message reminders (electronic only)
+        :returns: Tuple of (message_id, external_id) where message_id is the
+            Suomi.fi unique identifier (int) for tracking/replies, and external_id
+            is your system's identifier (str) used for idempotency
+        :rtype: tuple[int, str]
+        :raises ValueError: If service_id is not provided or configured
+        :raises SuomiFiError: If message send fails
+        """
+
+        if not (
+            service_id := service_id or getattr(settings, "SUOMIFI_SERVICE_ID", "")
+        ):
+            raise ValueError(
+                "Suomi.fi service_id is not configured. Pass service_id explicitly "
+                "to this method or define settings.SUOMIFI_SERVICE_ID in your "
+                "Django settings."
+            )
+        electronic_attachment_ids = electronic_attachment_ids or []
+        external_id = external_id or str(uuid.uuid4())
+
+        electronic_msg = self.build_electronic_message(
+            title=title,
+            body=body,
+            body_format=body_format,
+            verifiable=verifiable,
+            reply_allowed=reply_allowed,
+            reply_to=reply_to,
+            reminder=reminder,
+            attachment_ids=electronic_attachment_ids,
+        )
+        paper_mail = self.build_paper_mail_message(
+            recipient_address=recipient_address,
+            sender_address=sender_address,
+            attachment_id=paper_mail_attachment_id,
+            verifiable=verifiable,
+        )
+        payload = MultichannelMessageRequestBody(
+            electronic=electronic_msg,
+            external_id=external_id,
+            paper_mail=paper_mail,
+            recipient=Recipient(id=recipient_id),
+            sender=Sender(service_id=service_id),
+        )
+
+        logger.debug("Sending message to /v2/messages")
+
+        response = self.post("/v2/messages", json=dataclass_to_dict(payload))
 
         if response.status_code != requests.codes.ok:
             logger.debug(
@@ -228,6 +414,13 @@ class SuomiFiClient:
             )
             logger.debug(response.json())
             raise SuomiFiError("Message send request failed")
+
+        return response.json()["messageId"], external_id
+
+    def check_mailboxes(self, hetu_list):
+        mailbox_activity_request = {"endUsers": [{"id": x} for x in hetu_list]}
+
+        response = self.post("/v1/mailboxes/active", json=mailbox_activity_request)
 
         return response.json()
 
