@@ -73,6 +73,19 @@ class SuomiFiClient:
     def get(self, path: str, params=None, **kwargs):
         return self.request("GET", path, params=params, **kwargs)
 
+    def _raise_for_status(self, response: requests.Response, error_message: str):
+        """Check response status and raise SuomiFiAPIError if not successful.
+
+        :param response: HTTP response to check
+        :param error_message: Error message to use (status code will be appended)
+        :raises SuomiFiAPIError: If response status is not in 2xx range
+        """
+        if not (200 <= response.status_code < 300):
+            raise SuomiFiAPIError(
+                f"{error_message} (status {response.status_code})",
+                response_body=safe_get_response_body(response),
+            )
+
     def login(self, username: str = "", password: str = ""):
         auth_params = {
             "username": username or settings.SUOMIFI_USERNAME,
@@ -90,13 +103,7 @@ class SuomiFiClient:
         )
 
         response = self.post("/v1/token", json=auth_params)
-        response.raise_for_status()
-
-        if response.status_code != requests.codes.ok:
-            raise SuomiFiAPIError(
-                f"Authentication request failed with status {response.status_code}",
-                response_body=safe_get_response_body(response),
-            )
+        self._raise_for_status(response, "Authentication failed")
 
         parsed_response = response.json()
 
@@ -119,12 +126,7 @@ class SuomiFiClient:
 
         # Password change is a special case that does not use Authorization-header
         response = self.post("/v1/change-password", json=pw_change_request)
-
-        if response.status_code != requests.codes.ok:
-            raise SuomiFiAPIError(
-                f"Password change request failed with status {response.status_code}",
-                response_body=safe_get_response_body(response),
-            )
+        self._raise_for_status(response, "Password change failed")
 
         return response.json()
 
@@ -275,7 +277,7 @@ class SuomiFiClient:
             is your system's identifier (str) used for idempotency
         :rtype: tuple[int, str]
         :raises ValueError: If service_id is not provided or configured
-        :raises SuomiFiError: If message send fails (e.g., mailbox not active,
+        :raises SuomiFiAPIError: If message send fails (e.g., mailbox not active,
             replied-to message not found)
         """
         if not (
@@ -312,13 +314,7 @@ class SuomiFiClient:
         logger.debug("Sending electronic message to /v2/messages/electronic")
 
         response = self.post("/v2/messages/electronic", json=dataclass_to_dict(payload))
-
-        if response.status_code != requests.codes.ok:
-            raise SuomiFiAPIError(
-                f"Electronic message send request failed with status "
-                f"{response.status_code}",
-                response_body=safe_get_response_body(response),
-            )
+        self._raise_for_status(response, "Failed to send electronic message")
 
         return response.json()["messageId"], external_id
 
@@ -407,12 +403,7 @@ class SuomiFiClient:
         logger.debug("Sending message to /v2/messages")
 
         response = self.post("/v2/messages", json=dataclass_to_dict(payload))
-
-        if response.status_code != requests.codes.ok:
-            raise SuomiFiAPIError(
-                f"Message send request failed with status {response.status_code}",
-                response_body=safe_get_response_body(response),
-            )
+        self._raise_for_status(response, "Failed to send multichannel message")
 
         return response.json()["messageId"], external_id
 
@@ -427,7 +418,7 @@ class SuomiFiClient:
             Maximum 10,000 IDs per request.
         :returns: List of recipient IDs that have active mailboxes
         :rtype: list[str]
-        :raises SuomiFiError: If the mailbox check request fails
+        :raises SuomiFiAPIError: If the mailbox check request fails
         """
         payload = EndUsers(
             end_users=[EndUserId(id=recipient_id) for recipient_id in recipient_ids]
@@ -436,12 +427,7 @@ class SuomiFiClient:
         logger.debug(f"Checking mailbox activity for {len(recipient_ids)} recipients")
 
         response = self.post("/v1/mailboxes/active", json=dataclass_to_dict(payload))
-
-        if response.status_code != requests.codes.ok:
-            raise SuomiFiAPIError(
-                f"Mailbox check request failed with status {response.status_code}",
-                response_body=safe_get_response_body(response),
-            )
+        self._raise_for_status(response, "Failed to check mailbox status")
 
         response_data = response.json()
         active_mailbox_ids = [
@@ -463,7 +449,7 @@ class SuomiFiClient:
         :param recipient_id: Recipient ID (SSN or business ID)
         :returns: True if recipient has an active mailbox, False otherwise
         :rtype: bool
-        :raises SuomiFiError: If the mailbox check request fails
+        :raises SuomiFiAPIError: If the mailbox check request fails
         """
         active_ids = self.check_mailboxes([recipient_id])
         return recipient_id in active_ids
