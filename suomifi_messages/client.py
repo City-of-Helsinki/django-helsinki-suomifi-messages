@@ -456,6 +456,22 @@ class SuomiFiClient:
 
         return active_mailbox_ids
 
+    def check_mailbox(self, recipient_id: str) -> bool:
+        """
+        Check if a single recipient has an active Suomi.fi Messages mailbox.
+
+        This is a convenience method that wraps check_mailboxes for single ID checks.
+        For checking multiple recipients, use check_mailboxes() directly to avoid
+        making multiple API requests.
+
+        :param recipient_id: Recipient ID (SSN or business ID)
+        :returns: True if recipient has an active mailbox, False otherwise
+        :rtype: bool
+        :raises SuomiFiError: If the mailbox check request fails
+        """
+        active_ids = self.check_mailboxes([recipient_id])
+        return recipient_id in active_ids
+
     def get_events(self, continuation=None):
         if continuation:
             response = self.get(

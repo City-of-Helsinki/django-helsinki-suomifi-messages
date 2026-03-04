@@ -339,6 +339,51 @@ class TestSuomiFiClientCheckMailboxes:
             client.check_mailboxes(["123456-789A"])
 
 
+class TestSuomiFiClientCheckMailbox:
+    """Test SuomiFiClient single mailbox checking functionality."""
+
+    def test_check_mailbox_active(self, client, requests_mock):
+        """Test checking mailbox that is active returns True."""
+        requests_mock.post(
+            client.url("v1/mailboxes/active"),
+            json={"endUsersWithActiveMailbox": [{"id": "123456-789A"}]},
+            status_code=200,
+        )
+
+        result = client.check_mailbox("123456-789A")
+
+        assert result is True
+        assert requests_mock.last_request.json() == {
+            "endUsers": [{"id": "123456-789A"}]
+        }
+
+    def test_check_mailbox_inactive(self, client, requests_mock):
+        """Test checking mailbox that is inactive returns False."""
+        requests_mock.post(
+            client.url("v1/mailboxes/active"),
+            json={"endUsersWithActiveMailbox": []},
+            status_code=200,
+        )
+
+        result = client.check_mailbox("987654-321B")
+
+        assert result is False
+        assert requests_mock.last_request.json() == {
+            "endUsers": [{"id": "987654-321B"}]
+        }
+
+    def test_check_mailbox_error(self, client, requests_mock):
+        """Test single mailbox check request failure raises SuomiFiError."""
+        requests_mock.post(
+            client.url("v1/mailboxes/active"),
+            json={"reason": "Bad request"},
+            status_code=400,
+        )
+
+        with pytest.raises(SuomiFiError, match="Mailbox check request failed"):
+            client.check_mailbox("123456-789A")
+
+
 @pytest.mark.usefixtures("service_id_settings")
 class TestSuomiFiClientSendElectronicMessage:
     """Test SuomiFiClient electronic message sending functionality."""
