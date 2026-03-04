@@ -254,3 +254,32 @@ class MultichannelMessageRequestBody:
     paper_mail: PaperMailPart
     recipient: Recipient
     sender: Sender
+
+
+@dataclass
+class EndUserId:
+    """End user identifier (personal identity code or business ID)."""
+
+    id: str
+
+
+@dataclass
+class EndUsers:
+    """
+    Request body for checking mailbox activity.
+
+    Used with /v1/mailboxes/active endpoint.
+    """
+
+    end_users: list[EndUserId]
+
+
+@dataclass
+class EndUsersWithActiveMailbox:
+    """
+    Response body from mailbox activity check.
+
+    Contains list of user IDs that have active Suomi.fi Messages mailboxes.
+    """
+
+    end_users_with_active_mailbox: list[EndUserId]
