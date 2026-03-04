@@ -6,7 +6,7 @@ from urllib.parse import urljoin, urlsplit
 import requests
 from django.conf import settings
 
-from suomifi_messages.errors import SuomiFiError
+from suomifi_messages.errors import SuomiFiAPIError, SuomiFiError
 from suomifi_messages.schemas import (
     Address,
     AttachmentReference,
@@ -32,6 +32,7 @@ from suomifi_messages.schemas import (
     Visibility,
     dataclass_to_dict,
 )
+from suomifi_messages.utils import safe_get_response_body
 
 logger = logging.getLogger("suomi-fi-messages")
 
@@ -92,13 +93,9 @@ class SuomiFiClient:
         response.raise_for_status()
 
         if response.status_code != requests.codes.ok:
-            logger.debug(
-                f"Authentication request failed with status code {response.status_code}"
-            )
-            logger.debug(response.json())
-            raise SuomiFiError(
-                "Authentication request failed with status code "
-                f"{response.status_code} (expected: {requests.codes.ok})"
+            raise SuomiFiAPIError(
+                f"Authentication request failed with status {response.status_code}",
+                response_body=safe_get_response_body(response),
             )
 
         parsed_response = response.json()
@@ -124,8 +121,10 @@ class SuomiFiClient:
         response = self.post("/v1/change-password", json=pw_change_request)
 
         if response.status_code != requests.codes.ok:
-            logger.error(response.json())
-            raise SuomiFiError("Password change request failed")
+            raise SuomiFiAPIError(
+                f"Password change request failed with status {response.status_code}",
+                response_body=safe_get_response_body(response),
+            )
 
         return response.json()
 
@@ -315,12 +314,11 @@ class SuomiFiClient:
         response = self.post("/v2/messages/electronic", json=dataclass_to_dict(payload))
 
         if response.status_code != requests.codes.ok:
-            logger.debug(
-                "Electronic message send request failed with status code "
-                f"{response.status_code}"
+            raise SuomiFiAPIError(
+                f"Electronic message send request failed with status "
+                f"{response.status_code}",
+                response_body=safe_get_response_body(response),
             )
-            logger.debug(response.json())
-            raise SuomiFiError("Electronic message send request failed")
 
         return response.json()["messageId"], external_id
 
@@ -368,7 +366,7 @@ class SuomiFiClient:
             is your system's identifier (str) used for idempotency
         :rtype: tuple[int, str]
         :raises ValueError: If service_id is not provided or configured
-        :raises SuomiFiError: If message send fails
+        :raises SuomiFiAPIError: If message send fails
         """
 
         if not (
@@ -411,11 +409,10 @@ class SuomiFiClient:
         response = self.post("/v2/messages", json=dataclass_to_dict(payload))
 
         if response.status_code != requests.codes.ok:
-            logger.debug(
-                f"Message send request failed with status code {response.status_code}"
+            raise SuomiFiAPIError(
+                f"Message send request failed with status {response.status_code}",
+                response_body=safe_get_response_body(response),
             )
-            logger.debug(response.json())
-            raise SuomiFiError("Message send request failed")
 
         return response.json()["messageId"], external_id
 
@@ -441,11 +438,10 @@ class SuomiFiClient:
         response = self.post("/v1/mailboxes/active", json=dataclass_to_dict(payload))
 
         if response.status_code != requests.codes.ok:
-            logger.debug(
-                f"Mailbox check request failed with status code {response.status_code}"
+            raise SuomiFiAPIError(
+                f"Mailbox check request failed with status {response.status_code}",
+                response_body=safe_get_response_body(response),
             )
-            logger.debug(response.json())
-            raise SuomiFiError("Mailbox check request failed")
 
         response_data = response.json()
         active_mailbox_ids = [
