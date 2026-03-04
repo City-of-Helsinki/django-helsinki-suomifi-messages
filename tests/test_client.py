@@ -292,38 +292,51 @@ class TestSuomiFiClientChangePassword:
 class TestSuomiFiClientCheckMailboxes:
     """Test SuomiFiClient mailbox checking functionality."""
 
-    def test_check_mailboxes_success(self, client, requests_mock):
-        """Test successful mailbox check."""
+    @pytest.mark.parametrize(
+        "input_ids,expected_result",
+        [
+            # Some recipients have active mailboxes
+            (
+                ["123456-789A", "987654-321B", "111111-222C"],
+                ["123456-789A", "987654-321B"],
+            ),
+            # All recipients have active mailboxes
+            (["123456-789A", "987654-321B"], ["123456-789A", "987654-321B"]),
+            # No recipients have active mailboxes
+            (["123456-789A", "987654-321B"], []),
+            # Single recipient with active mailbox
+            (["123456-789A"], ["123456-789A"]),
+            # Empty input list
+            ([], []),
+        ],
+    )
+    def test_check_mailboxes_responses(
+        self, client, requests_mock, input_ids, expected_result
+    ):
+        """Test mailbox check with various response scenarios."""
         requests_mock.post(
             client.url("v1/mailboxes/active"),
-            json={
-                "activeMailboxes": [
-                    {"id": "123456-789A", "active": True},
-                    {"id": "987654-321B", "active": False},
-                ]
-            },
+            json={"endUsersWithActiveMailbox": [{"id": id} for id in expected_result]},
             status_code=200,
         )
 
-        result = client.check_mailboxes(["123456-789A", "987654-321B"])
+        result = client.check_mailboxes(input_ids)
 
-        assert "activeMailboxes" in result
-        assert len(result["activeMailboxes"]) == 2
+        assert result == expected_result
         assert requests_mock.last_request.json() == {
-            "endUsers": [{"id": "123456-789A"}, {"id": "987654-321B"}]
+            "endUsers": [{"id": id} for id in input_ids]
         }
 
-    def test_check_mailboxes_empty_list(self, client, requests_mock):
-        """Test mailbox check with empty list."""
+    def test_check_mailboxes_error(self, client, requests_mock):
+        """Test mailbox check request failure raises SuomiFiError."""
         requests_mock.post(
             client.url("v1/mailboxes/active"),
-            json={"activeMailboxes": []},
-            status_code=200,
+            json={"reason": "Bad request"},
+            status_code=400,
         )
 
-        result = client.check_mailboxes([])
-
-        assert result == {"activeMailboxes": []}
+        with pytest.raises(SuomiFiError, match="Mailbox check request failed"):
+            client.check_mailboxes(["123456-789A"])
 
 
 @pytest.mark.usefixtures("service_id_settings")

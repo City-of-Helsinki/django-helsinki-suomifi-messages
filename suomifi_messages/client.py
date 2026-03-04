@@ -13,6 +13,8 @@ from suomifi_messages.schemas import (
     BodyFormat,
     ElectronicMessageRequestBody,
     ElectronicPart,
+    EndUserId,
+    EndUsers,
     MessageNotifications,
     MessageServiceType,
     MultichannelMessageRequestBody,
@@ -417,12 +419,42 @@ class SuomiFiClient:
 
         return response.json()["messageId"], external_id
 
-    def check_mailboxes(self, hetu_list):
-        mailbox_activity_request = {"endUsers": [{"id": x} for x in hetu_list]}
+    def check_mailboxes(self, recipient_ids: list[str]) -> list[str]:
+        """
+        Check which recipients have active Suomi.fi Messages mailboxes.
 
-        response = self.post("/v1/mailboxes/active", json=mailbox_activity_request)
+        This endpoint should only be used in the context of sending messages to
+        determine whether a recipient can receive electronic messages.
 
-        return response.json()
+        :param recipient_ids: List of recipient IDs (SSNs or business IDs) to check.
+            Maximum 10,000 IDs per request.
+        :returns: List of recipient IDs that have active mailboxes
+        :rtype: list[str]
+        :raises SuomiFiError: If the mailbox check request fails
+        """
+        payload = EndUsers(
+            end_users=[EndUserId(id=recipient_id) for recipient_id in recipient_ids]
+        )
+
+        logger.debug(f"Checking mailbox activity for {len(recipient_ids)} recipients")
+
+        response = self.post("/v1/mailboxes/active", json=dataclass_to_dict(payload))
+
+        if response.status_code != requests.codes.ok:
+            logger.debug(
+                f"Mailbox check request failed with status code {response.status_code}"
+            )
+            logger.debug(response.json())
+            raise SuomiFiError("Mailbox check request failed")
+
+        response_data = response.json()
+        active_mailbox_ids = [
+            user["id"] for user in response_data.get("endUsersWithActiveMailbox", [])
+        ]
+
+        logger.debug(f"Found {len(active_mailbox_ids)} active mailboxes")
+
+        return active_mailbox_ids
 
     def get_events(self, continuation=None):
         if continuation:
