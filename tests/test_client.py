@@ -9,7 +9,7 @@ from suomifi_messages.client import (
     SUOMIFI_QA_BASE_URL,
     SuomiFiClient,
 )
-from suomifi_messages.errors import SuomiFiError
+from suomifi_messages.errors import SuomiFiAPIError, SuomiFiError
 from suomifi_messages.schemas import (
     Address,
     AttachmentReference,
@@ -285,7 +285,7 @@ class TestSuomiFiClientChangePassword:
             status_code=400,
         )
 
-        with pytest.raises(SuomiFiError, match="Password change request failed"):
+        with pytest.raises(SuomiFiAPIError, match="Password change request failed"):
             client.change_password("wrong_pass", "new_pass")
 
 
@@ -328,14 +328,14 @@ class TestSuomiFiClientCheckMailboxes:
         }
 
     def test_check_mailboxes_error(self, client, requests_mock):
-        """Test mailbox check request failure raises SuomiFiError."""
+        """Test mailbox check request failure raises SuomiFiAPIError."""
         requests_mock.post(
             client.url("v1/mailboxes/active"),
             json={"reason": "Bad request"},
             status_code=400,
         )
 
-        with pytest.raises(SuomiFiError, match="Mailbox check request failed"):
+        with pytest.raises(SuomiFiAPIError, match="Mailbox check request failed"):
             client.check_mailboxes(["123456-789A"])
 
 
@@ -373,14 +373,14 @@ class TestSuomiFiClientCheckMailbox:
         }
 
     def test_check_mailbox_error(self, client, requests_mock):
-        """Test single mailbox check request failure raises SuomiFiError."""
+        """Test single mailbox check request failure raises SuomiFiAPIError."""
         requests_mock.post(
             client.url("v1/mailboxes/active"),
             json={"reason": "Bad request"},
             status_code=400,
         )
 
-        with pytest.raises(SuomiFiError, match="Mailbox check request failed"):
+        with pytest.raises(SuomiFiAPIError, match="Mailbox check request failed"):
             client.check_mailbox("123456-789A")
 
 
@@ -459,7 +459,7 @@ class TestSuomiFiClientSendElectronicMessage:
         )
 
         with pytest.raises(
-            SuomiFiError, match="Electronic message send request failed"
+            SuomiFiAPIError, match="Electronic message send request failed"
         ):
             client.send_electronic_message(
                 title="Test",
@@ -596,7 +596,7 @@ class TestSuomiFiClientSendMultichannelMessage:
             status_code=400,
         )
 
-        with pytest.raises(SuomiFiError, match="Message send request failed"):
+        with pytest.raises(SuomiFiAPIError, match="Message send request failed"):
             client.send_multichannel_message(
                 title="Test",
                 body="Test",
@@ -753,17 +753,6 @@ class TestSuomiFiClientAddAttachment:
         """Test that add_attachment raises NotImplementedError."""
         with pytest.raises(NotImplementedError):
             client.add_attachment(Mock())
-
-
-class TestSuomiFiError:
-    """Test SuomiFiError exception."""
-
-    def test_suomifi_error_is_exception(self):
-        """Test that SuomiFiError is an Exception."""
-        error = SuomiFiError("Test error")
-
-        assert isinstance(error, Exception)
-        assert str(error) == "Test error"
 
 
 class TestBuildElectronicMessage:
