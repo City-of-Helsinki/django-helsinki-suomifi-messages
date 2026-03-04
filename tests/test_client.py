@@ -231,7 +231,7 @@ class TestSuomiFiClientLogin:
             status_code=401,
         )
 
-        with pytest.raises(requests.HTTPError):
+        with pytest.raises(SuomiFiAPIError, match="Authentication failed"):
             client.login()
 
     @pytest.mark.usefixtures("mock_settings")
@@ -285,7 +285,7 @@ class TestSuomiFiClientChangePassword:
             status_code=400,
         )
 
-        with pytest.raises(SuomiFiAPIError, match="Password change request failed"):
+        with pytest.raises(SuomiFiAPIError, match="Password change failed"):
             client.change_password("wrong_pass", "new_pass")
 
 
@@ -335,7 +335,7 @@ class TestSuomiFiClientCheckMailboxes:
             status_code=400,
         )
 
-        with pytest.raises(SuomiFiAPIError, match="Mailbox check request failed"):
+        with pytest.raises(SuomiFiAPIError, match="Failed to check mailbox status"):
             client.check_mailboxes(["123456-789A"])
 
 
@@ -380,7 +380,7 @@ class TestSuomiFiClientCheckMailbox:
             status_code=400,
         )
 
-        with pytest.raises(SuomiFiAPIError, match="Mailbox check request failed"):
+        with pytest.raises(SuomiFiAPIError, match="Failed to check mailbox status"):
             client.check_mailbox("123456-789A")
 
 
@@ -458,9 +458,7 @@ class TestSuomiFiClientSendElectronicMessage:
             status_code=400,
         )
 
-        with pytest.raises(
-            SuomiFiAPIError, match="Electronic message send request failed"
-        ):
+        with pytest.raises(SuomiFiAPIError, match="Failed to send electronic message"):
             client.send_electronic_message(
                 title="Test",
                 body="Test",
@@ -596,7 +594,9 @@ class TestSuomiFiClientSendMultichannelMessage:
             status_code=400,
         )
 
-        with pytest.raises(SuomiFiAPIError, match="Message send request failed"):
+        with pytest.raises(
+            SuomiFiAPIError, match="Failed to send multichannel message"
+        ):
             client.send_multichannel_message(
                 title="Test",
                 body="Test",
