@@ -15,6 +15,9 @@ from suomifi_messages.schemas import (
     ElectronicPart,
     EndUserId,
     EndUsers,
+    Event,
+    EventMetadata,
+    EventType,
     MessageNotifications,
     MessageServiceType,
     MultichannelMessageRequestBody,
@@ -32,7 +35,7 @@ from suomifi_messages.schemas import (
     Visibility,
     dataclass_to_dict,
 )
-from suomifi_messages.utils import safe_get_response_body
+from suomifi_messages.utils import parse_iso_datetime, safe_get_response_body
 
 logger = logging.getLogger("suomi-fi-messages")
 
@@ -454,18 +457,61 @@ class SuomiFiClient:
         active_ids = self.check_mailboxes([recipient_id])
         return recipient_id in active_ids
 
-    def get_events(self, continuation=None):
-        if continuation:
-            response = self.get(
-                "/v2/events",
-                json={"continuationToken": continuation},
-            )
+    def get_events(
+        self, continuation_token: str | None = None
+    ) -> tuple[list[Event], str | None]:
+        """
+        Retrieve events related to messages you have sent or received.
+
+        Returns at most 1,000 events per request. Event data is retrievable for
+        60 days. If an empty event list is returned, there are no more events
+        at this time.
+
+        :param continuation_token: Token for pagination (optional). Use the token
+            from the previous response to retrieve the next batch of events.
+        :returns: Tuple of (events, continuation_token) where events is a list
+            of Event objects and continuation_token is a string for pagination
+            or None if no more events
+        :rtype: tuple[list[Event], str | None]
+        :raises SuomiFiAPIError: If the events request fails
+        """
+        params = {"continuationToken": continuation_token} if continuation_token else {}
+
+        if continuation_token:
+            logger.debug("Fetching events (continuing from pagination)")
         else:
-            response = self.get("/v2/events")
+            logger.debug("Fetching events")
 
-        response.raise_for_status()
+        response = self.get("/v2/events", params=params)
+        self._raise_for_status(response, "Failed to get events")
 
-        return response.json()
+        response_data = response.json()
+        raw_events = response_data.get("events", [])
+
+        logger.debug(f"Retrieved {len(raw_events)} events")
+
+        # Parse events into Event dataclasses
+        events = []
+        for raw_event in raw_events:
+            # Try to parse event type as enum, fall back to string for unknown types
+            try:
+                event_type = EventType(raw_event["type"])
+            except ValueError:
+                event_type = raw_event["type"]
+
+            events.append(
+                Event(
+                    type=event_type,
+                    event_time=parse_iso_datetime(raw_event["eventTime"]),
+                    metadata=EventMetadata(
+                        message_id=raw_event["metadata"]["messageId"],
+                        service_id=raw_event["metadata"]["serviceId"],
+                        external_id=raw_event["metadata"].get("externalId"),
+                    ),
+                )
+            )
+
+        return events, response_data.get("continuationToken")
 
     def get_message(self, message_id):
         response = self.get(f"/v1/messages/{message_id}")

@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from unittest.mock import Mock
 
 import pytest
@@ -15,6 +16,9 @@ from suomifi_messages.schemas import (
     AttachmentReference,
     BodyFormat,
     ElectronicPart,
+    Event,
+    EventMetadata,
+    EventType,
     MessageNotifications,
     MessageServiceType,
     NewPaperMailRecipient,
@@ -616,7 +620,25 @@ class TestSuomiFiClientGetEvents:
         requests_mock.get(
             client.url("v2/events"),
             json={
-                "events": [{"id": "event_1"}, {"id": "event_2"}],
+                "events": [
+                    {
+                        "type": "Electronic message created",
+                        "eventTime": "2024-01-01T12:00:00Z",
+                        "metadata": {
+                            "messageId": 123,
+                            "serviceId": "service_1",
+                            "externalId": "ext_1",
+                        },
+                    },
+                    {
+                        "type": "Electronic message read",
+                        "eventTime": "2024-01-02T12:00:00Z",
+                        "metadata": {
+                            "messageId": 456,
+                            "serviceId": "service_2",
+                        },
+                    },
+                ],
                 "continuationToken": "next_token_123",
             },
             status_code=200,
@@ -624,27 +646,114 @@ class TestSuomiFiClientGetEvents:
 
         result = client.get_events()
 
-        assert "events" in result
-        assert len(result["events"]) == 2
-        assert result["continuationToken"] == "next_token_123"
+        assert requests_mock.last_request.qs == {}
+
+        events, continuation_token = result
+
+        assert events == [
+            Event(
+                type=EventType.ELECTRONIC_MESSAGE_CREATED,
+                event_time=datetime.fromisoformat("2024-01-01T12:00:00+00:00"),
+                metadata=EventMetadata(
+                    message_id=123,
+                    service_id="service_1",
+                    external_id="ext_1",
+                ),
+            ),
+            Event(
+                type=EventType.ELECTRONIC_MESSAGE_READ,
+                event_time=datetime.fromisoformat("2024-01-02T12:00:00+00:00"),
+                metadata=EventMetadata(
+                    message_id=456,
+                    service_id="service_2",
+                    external_id=None,
+                ),
+            ),
+        ]
+        assert continuation_token == "next_token_123"
 
     def test_get_events_with_continuation(self, client, requests_mock):
         """Test getting events with continuation token."""
         requests_mock.get(
             client.url("v2/events"),
             json={
-                "events": [{"id": "event_3"}],
+                "events": [
+                    {
+                        "type": "Paper mail created",
+                        "eventTime": "2024-01-03T12:00:00Z",
+                        "metadata": {
+                            "messageId": 789,
+                            "serviceId": "service_3",
+                        },
+                    }
+                ],
                 "continuationToken": None,
             },
             status_code=200,
         )
 
-        result = client.get_events(continuation="existing_token_456")
+        result = client.get_events(continuation_token="existing_token_456")
 
-        assert "events" in result
-        assert len(result["events"]) == 1
-        assert result["events"][0]["id"] == "event_3"
-        assert result["continuationToken"] is None
+        assert requests_mock.last_request.qs == {
+            "continuationToken": ["existing_token_456"]
+        }
+
+        events, continuation_token = result
+
+        assert events == [
+            Event(
+                type=EventType.PAPER_MAIL_CREATED,
+                event_time=datetime.fromisoformat("2024-01-03T12:00:00+00:00"),
+                metadata=EventMetadata(
+                    message_id=789,
+                    service_id="service_3",
+                    external_id=None,
+                ),
+            ),
+        ]
+        assert continuation_token is None
+
+    def test_get_events_with_unknown_event_type(self, client, requests_mock):
+        """Test that unknown event types are handled gracefully as strings."""
+        requests_mock.get(
+            client.url("v2/events"),
+            json={
+                "events": [
+                    {
+                        "type": "Unknown type",
+                        "eventTime": "2024-01-02T12:00:00Z",
+                        "metadata": {
+                            "messageId": 456,
+                            "serviceId": "service_2",
+                        },
+                    },
+                ],
+                "continuationToken": None,
+            },
+            status_code=200,
+        )
+
+        events, continuation_token = client.get_events()
+
+        assert len(events) == 1
+        assert events[0].type == "Unknown type"
+        assert continuation_token is None
+
+    def test_get_events_with_empty_events_list(self, client, requests_mock):
+        """Test that empty events list is handled correctly."""
+        requests_mock.get(
+            client.url("v2/events"),
+            json={
+                "events": [],
+                "continuationToken": None,
+            },
+            status_code=200,
+        )
+
+        events, continuation_token = client.get_events()
+
+        assert events == []
+        assert continuation_token is None
 
     def test_get_events_raises_on_error(self, client, requests_mock):
         """Test that get_events raises on HTTP error."""
@@ -653,7 +762,7 @@ class TestSuomiFiClientGetEvents:
             status_code=500,
         )
 
-        with pytest.raises(requests.HTTPError):
+        with pytest.raises(SuomiFiAPIError):
             client.get_events()
 
 
