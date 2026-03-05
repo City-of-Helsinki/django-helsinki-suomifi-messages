@@ -5,6 +5,7 @@ Based on the OpenAPI schema from https://api.messages.suomi.fi/docs/messages-api
 """
 
 from dataclasses import asdict, dataclass
+from datetime import datetime
 from enum import Enum
 from typing import TypedDict
 
@@ -86,6 +87,20 @@ class ReminderType(str, Enum):
 
     DEFAULT_REMINDER = "Default reminder"
     NO_REMINDERS = "No reminders"
+
+
+class EventType(str, Enum):
+    """Event type enum for message lifecycle events."""
+
+    ELECTRONIC_MESSAGE_CREATED = "Electronic message created"
+    ELECTRONIC_MESSAGE_FROM_END_USER = "Electronic message from end user"
+    ELECTRONIC_MESSAGE_READ = "Electronic message read"
+    PAPER_MAIL_CREATED = "Paper mail created"
+    POSTI_RECEIPT_CONFIRMED = "Posti: receipt confirmed"
+    POSTI_RETURNED_TO_SENDER = "Posti: returned to sender"
+    POSTI_UNRESOLVED = "Posti: unresolved"
+    RECEIPT_CONFIRMED = "Receipt confirmed"
+    SENT_FOR_PRINTING_AND_ENVELOPING = "Sent for printing and enveloping"
 
 
 # Typed dicts
@@ -283,3 +298,31 @@ class EndUsersWithActiveMailbox:
     """
 
     end_users_with_active_mailbox: list[EndUserId]
+
+
+@dataclass
+class EventMetadata:
+    """
+    Event metadata containing message and service information.
+
+    Common metadata present in all event types.
+    """
+
+    message_id: int
+    service_id: str
+    external_id: str | None = None
+
+
+@dataclass
+class Event:
+    """
+    Event related to a message sent or received.
+
+    Events track the lifecycle of messages including creation, reading,
+    and delivery status updates. The type field contains known EventType
+    enum values or unknown types as strings for forward compatibility.
+    """
+
+    type: EventType | str
+    event_time: datetime
+    metadata: EventMetadata
