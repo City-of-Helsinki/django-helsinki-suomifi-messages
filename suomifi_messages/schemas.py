@@ -326,3 +326,63 @@ class Event:
     type: EventType | str
     event_time: datetime
     metadata: EventMetadata
+
+
+@dataclass
+class ReceivedAttachment:
+    """Attachment metadata on a message received from an end user."""
+
+    attachment_id: str | None = None
+    filename: str | None = None
+    media_type: str | None = None
+    size_bytes: int | None = None
+
+
+@dataclass
+class MessageThread:
+    """Thread information linking messages in a conversation."""
+
+    root_message_id: int
+    thread_external_id: str | None = None
+
+
+@dataclass
+class ReceivedElectronicMessage:
+    """Electronic message content received from an end user."""
+
+    message_id: int
+    created_at: datetime
+    title: str
+    body: str
+    attachments: list[ReceivedAttachment]
+    thread: MessageThread | None = None
+
+
+@dataclass
+class MessageSenderActor:
+    """Individual actor in a message sender context."""
+
+    id: str
+    name: str
+
+
+@dataclass
+class MessageSender:
+    """Sender information for a message received from an end user."""
+
+    mailbox_owner: MessageSenderActor
+    person_sending_on_behalf: MessageSenderActor | None = None
+
+
+@dataclass
+class ReceivedMessage:
+    """
+    A message received from an end user via Suomi.fi Messages.
+
+    Corresponds to the v2 API response from GET /v2/messages/{id}.
+    """
+
+    message_id: int
+    created_at: datetime
+    electronic: ReceivedElectronicMessage
+    sender: MessageSender | None = None
