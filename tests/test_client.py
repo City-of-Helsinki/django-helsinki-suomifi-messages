@@ -840,8 +840,7 @@ class TestSuomiFiClientGetAttachment:
 
         result = client.get_attachment("att_123")
 
-        assert result.content == b"Binary attachment content"
-        assert result.status_code == 200
+        assert result == b"Binary attachment content"
 
     def test_get_attachment_raises_on_error(self, client, requests_mock):
         """Test that get_attachment raises on HTTP error."""
@@ -850,7 +849,7 @@ class TestSuomiFiClientGetAttachment:
             status_code=404,
         )
 
-        with pytest.raises(requests.HTTPError):
+        with pytest.raises(SuomiFiAPIError, match="Failed to retrieve attachment"):
             client.get_attachment("nonexistent")
 
 

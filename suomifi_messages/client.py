@@ -527,12 +527,22 @@ class SuomiFiClient:
 
         return response.json()
 
-    def get_attachment(self, attachment_id):
+    def get_attachment(self, attachment_id: str) -> bytes:
+        """
+        Retrieve an attachment that an end user has included in a message they sent you.
+
+        Attachment data is retrievable for 60 days.
+
+        :param attachment_id: Attachment ID
+        :returns: Raw attachment content as bytes
+        :rtype: bytes
+        :raises SuomiFiAPIError: If the attachment cannot be retrieved
+        """
         response = self.get(f"/v1/attachments/{attachment_id}")
 
-        response.raise_for_status()
+        self._raise_for_status(response, "Failed to retrieve attachment")
 
-        return response
+        return response.content
 
     def upload_attachment(
         self, filename: str, filelike: bytes | typing.BinaryIO
