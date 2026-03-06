@@ -534,7 +534,24 @@ class SuomiFiClient:
 
         return response
 
-    def add_attachment(self, filelike):
-        # _ATTACHMENT_ENDPOINT = "/v1/attachments"
+    def upload_attachment(
+        self, filename: str, filelike: bytes | typing.BinaryIO
+    ) -> str:
+        """
+        Upload an attachment for use in electronic or paper mail messages.
 
-        raise NotImplementedError
+        Attachments must be used in a message within 24 hours or they will be removed.
+        The attachment is shown to the recipient with the filename provided here.
+
+        :param filename: Filename shown to the recipient
+        :param filelike: File content as bytes or a binary file-like object
+        :returns: Attachment ID to use in message attachment references
+        :rtype: str
+        :raises SuomiFiAPIError: If the upload fails
+        """
+        logger.debug(f"Uploading attachment: {filename}")
+
+        response = self.post("/v2/attachments", files={"file": (filename, filelike)})
+        self._raise_for_status(response, "Failed to upload attachment")
+
+        return response.json()["attachmentId"]
