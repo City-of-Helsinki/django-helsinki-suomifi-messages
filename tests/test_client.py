@@ -1,6 +1,5 @@
 import uuid
 from datetime import datetime
-from unittest.mock import Mock
 
 import pytest
 import requests
@@ -855,13 +854,33 @@ class TestSuomiFiClientGetAttachment:
             client.get_attachment("nonexistent")
 
 
-class TestSuomiFiClientAddAttachment:
+class TestSuomiFiClientUploadAttachment:
     """Test SuomiFiClient attachment upload functionality."""
 
-    def test_add_attachment_not_implemented(self, client):
-        """Test that add_attachment raises NotImplementedError."""
-        with pytest.raises(NotImplementedError):
-            client.add_attachment(Mock())
+    def test_upload_attachment(self, client, requests_mock):
+        """Test uploading an attachment returns the attachment ID and sends filename."""
+        attachment_id = "550e8400-e29b-41d4-a716-446655440000"
+        requests_mock.post(
+            client.url("/v2/attachments"),
+            json={"attachmentId": attachment_id},
+            status_code=201,
+        )
+
+        result = client.upload_attachment("document.pdf", b"file content")
+
+        assert result == attachment_id
+        assert b"document.pdf" in requests_mock.last_request.body
+
+    def test_upload_attachment_failure(self, client, requests_mock):
+        """Test that a non-2xx response raises SuomiFiAPIError."""
+        requests_mock.post(
+            client.url("/v2/attachments"),
+            json={"error": "Unsupported media type"},
+            status_code=415,
+        )
+
+        with pytest.raises(SuomiFiAPIError, match="Failed to upload attachment"):
+            client.upload_attachment("document.xyz", b"file content")
 
 
 class TestBuildElectronicMessage:
