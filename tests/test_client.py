@@ -796,37 +796,6 @@ class TestSuomiFiClientGetMessage:
             client.get_message("nonexistent")
 
 
-class TestSuomiFiClientGetMessageState:
-    """Test SuomiFiClient message state retrieval functionality."""
-
-    def test_get_message_state_success(self, client, requests_mock):
-        """Test successful message state retrieval."""
-        requests_mock.get(
-            client.url("v1/messages/msg_123/state"),
-            json={
-                "messageId": 12345,
-                "state": "delivered",
-                "timestamp": "2026-02-13T10:00:00Z",
-            },
-            status_code=200,
-        )
-
-        result = client.get_message_state("msg_123")
-
-        assert result["messageId"] == 12345
-        assert result["state"] == "delivered"
-
-    def test_get_message_state_raises_on_error(self, client, requests_mock):
-        """Test that get_message_state raises on HTTP error."""
-        requests_mock.get(
-            client.url("v1/messages/nonexistent/state"),
-            status_code=404,
-        )
-
-        with pytest.raises(requests.HTTPError):
-            client.get_message_state("nonexistent")
-
-
 class TestSuomiFiClientGetAttachment:
     """Test SuomiFiClient attachment retrieval functionality."""
 

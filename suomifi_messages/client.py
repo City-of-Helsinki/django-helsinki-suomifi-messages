@@ -520,13 +520,6 @@ class SuomiFiClient:
 
         return response.json()
 
-    def get_message_state(self, message_id):
-        response = self.get(f"/v1/messages/{message_id}/state")
-
-        response.raise_for_status()
-
-        return response.json()
-
     def get_attachment(self, attachment_id: str) -> bytes:
         """
         Retrieve an attachment that an end user has included in a message they sent you.
