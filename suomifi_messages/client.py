@@ -19,13 +19,19 @@ from suomifi_messages.schemas import (
     EventMetadata,
     EventType,
     MessageNotifications,
+    MessageSender,
+    MessageSenderActor,
     MessageServiceType,
+    MessageThread,
     MultichannelMessageRequestBody,
     NewPaperMailRecipient,
     NewPaperMailSender,
     PaperMailPart,
     PostiMessaging,
     PrintingAndEnvelopingService,
+    ReceivedAttachment,
+    ReceivedElectronicMessage,
+    ReceivedMessage,
     Recipient,
     ReminderType,
     ReplyAllowedBy,
@@ -513,26 +519,93 @@ class SuomiFiClient:
 
         return events, response_data.get("continuationToken")
 
-    def get_message(self, message_id):
-        response = self.get(f"/v1/messages/{message_id}")
+    def get_message(self, message_id: int) -> ReceivedMessage:
+        """
+        Retrieve a message that an end user has sent you.
 
-        response.raise_for_status()
+        Message data is retrievable for 60 days. The messageId can be found
+        in the events returned by get_events().
 
-        return response.json()
+        :param message_id: Suomi.fi message ID from events
+        :returns: The received message
+        :rtype: ReceivedMessage
+        :raises SuomiFiAPIError: If the message cannot be retrieved
+        """
+        logger.debug(f"Retrieving message {message_id}")
 
-    def get_message_state(self, message_id):
-        response = self.get(f"/v1/messages/{message_id}/state")
+        response = self.get(f"/v2/messages/{message_id}")
+        self._raise_for_status(response, "Failed to retrieve message")
 
-        response.raise_for_status()
+        data = response.json()
 
-        return response.json()
+        raw_el = data["electronic"]
 
-    def get_attachment(self, attachment_id):
+        thread = None
+        if raw_thread := raw_el.get("thread"):
+            thread = MessageThread(
+                root_message_id=raw_thread["rootMessageId"],
+                thread_external_id=raw_thread.get("threadExternalId"),
+            )
+
+        electronic = ReceivedElectronicMessage(
+            message_id=raw_el["messageId"],
+            created_at=parse_iso_datetime(raw_el["createdAt"]),
+            title=raw_el["title"],
+            body=raw_el["body"],
+            attachments=[
+                ReceivedAttachment(
+                    attachment_id=att.get("attachmentId"),
+                    filename=att.get("filename"),
+                    media_type=att.get("mediaType"),
+                    size_bytes=att.get("sizeBytes"),
+                )
+                for att in raw_el.get("attachments", [])
+            ],
+            thread=thread,
+        )
+
+        sender = None
+        if raw_sender := data.get("sender"):
+            person_on_behalf = None
+            if raw_on_behalf := raw_sender.get(
+                "personSendingMessageOnBehalfOfMailboxOwner"
+            ):
+                person_on_behalf = MessageSenderActor(
+                    id=raw_on_behalf["id"],
+                    name=raw_on_behalf["name"],
+                )
+
+            sender = MessageSender(
+                mailbox_owner=MessageSenderActor(
+                    id=raw_sender["mailboxOwner"]["id"],
+                    name=raw_sender["mailboxOwner"]["name"],
+                ),
+                person_sending_on_behalf=person_on_behalf,
+            )
+
+        return ReceivedMessage(
+            message_id=data["messageId"],
+            created_at=parse_iso_datetime(data["createdAt"]),
+            electronic=electronic,
+            sender=sender,
+        )
+
+    def get_attachment(self, attachment_id: str) -> bytes:
+        """
+        Retrieve an attachment that an end user has included in a message they sent you.
+
+        Attachment data is retrievable for 60 days.
+
+        :param attachment_id: Attachment ID
+        :returns: Raw attachment content as bytes
+        :rtype: bytes
+        :raises SuomiFiAPIError: If the attachment cannot be retrieved
+        """
         response = self.get(f"/v1/attachments/{attachment_id}")
 
-        response.raise_for_status()
+        self._raise_for_status(response, "Failed to retrieve attachment")
 
-        return response
+        return response.content
 
     def upload_attachment(
         self, filename: str, filelike: bytes | typing.BinaryIO
