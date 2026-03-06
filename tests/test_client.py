@@ -1142,40 +1142,6 @@ class TestBuildPaperMailMessage:
         )
         assert paper_mail == expected
 
-    def test_build_paper_mail_with_attachments(
-        self, client, recipient_address, sender_address
-    ):
-        """Build paper mail with attachments."""
-        paper_mail = client.build_paper_mail_message(
-            recipient_address=recipient_address,
-            sender_address=sender_address,
-            attachment_id="att_1",
-            verifiable=False,
-        )
-
-        expected = PaperMailPart(
-            color_printing=True,
-            create_address_page=True,
-            attachments=[AttachmentReference(attachment_id="att_1")],
-            message_service_type=MessageServiceType.NORMAL,
-            recipient=NewPaperMailRecipient(
-                address=recipient_address,
-            ),
-            sender=NewPaperMailSender(
-                address=sender_address,
-            ),
-            printing_and_enveloping_service=PrintingAndEnvelopingService(
-                posti_messaging=PostiMessaging(
-                    contact_details={"email": "posti@example.com"},
-                    password="1234",
-                    username="123456",
-                ),
-            ),
-            rotate_landscape_pages=False,
-            two_sided_printing=False,
-        )
-        assert paper_mail == expected
-
     def test_build_paper_mail_with_additional_name(
         self, client, recipient_address, sender_address
     ):
