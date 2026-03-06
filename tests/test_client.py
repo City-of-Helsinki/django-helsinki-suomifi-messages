@@ -19,12 +19,18 @@ from suomifi_messages.schemas import (
     EventMetadata,
     EventType,
     MessageNotifications,
+    MessageSender,
+    MessageSenderActor,
     MessageServiceType,
+    MessageThread,
     NewPaperMailRecipient,
     NewPaperMailSender,
     PaperMailPart,
     PostiMessaging,
     PrintingAndEnvelopingService,
+    ReceivedAttachment,
+    ReceivedElectronicMessage,
+    ReceivedMessage,
     ReminderType,
     ReplyAllowedBy,
     SenderDetailsInNotifications,
@@ -769,31 +775,170 @@ class TestSuomiFiClientGetMessage:
     """Test SuomiFiClient message retrieval functionality."""
 
     def test_get_message_success(self, client, requests_mock):
-        """Test successful message retrieval."""
+        """Test successful message retrieval returns a parsed ReceivedMessage."""
         requests_mock.get(
-            client.url("v1/messages/msg_123"),
+            client.url("v2/messages/12345"),
             json={
                 "messageId": 12345,
-                "title": "Test Message",
-                "body": "Message content",
+                "createdAt": "2024-01-01T12:00:00Z",
+                "electronic": {
+                    "messageId": 12345,
+                    "createdAt": "2024-01-01T12:00:00Z",
+                    "title": "Test Message",
+                    "body": "Message content",
+                    "attachments": [],
+                },
+                "sender": {
+                    "mailboxOwner": {
+                        "id": "123456-789A",
+                        "name": "Matti Meikäläinen",
+                    }
+                },
             },
             status_code=200,
         )
 
-        result = client.get_message("msg_123")
+        result = client.get_message(12345)
 
-        assert result["messageId"] == 12345
-        assert result["title"] == "Test Message"
+        assert result == ReceivedMessage(
+            message_id=12345,
+            created_at=datetime.fromisoformat("2024-01-01T12:00:00+00:00"),
+            electronic=ReceivedElectronicMessage(
+                message_id=12345,
+                created_at=datetime.fromisoformat("2024-01-01T12:00:00+00:00"),
+                title="Test Message",
+                body="Message content",
+                attachments=[],
+            ),
+            sender=MessageSender(
+                mailbox_owner=MessageSenderActor(
+                    id="123456-789A",
+                    name="Matti Meikäläinen",
+                ),
+            ),
+        )
+
+    def test_get_message_with_attachment_and_thread(self, client, requests_mock):
+        """Test message retrieval correctly parses attachments and thread info."""
+        requests_mock.get(
+            client.url("v2/messages/12345"),
+            json={
+                "messageId": 12345,
+                "createdAt": "2024-01-01T12:00:00Z",
+                "electronic": {
+                    "messageId": 12345,
+                    "createdAt": "2024-01-01T12:00:00Z",
+                    "title": "Test Message",
+                    "body": "Message content",
+                    "attachments": [
+                        {
+                            "attachmentId": "att-uuid-123",
+                            "filename": "document.pdf",
+                            "mediaType": "application/pdf",
+                            "sizeBytes": 12345,
+                        }
+                    ],
+                    "thread": {
+                        "rootMessageId": 99999,
+                        "threadExternalId": "ext-thread-1",
+                    },
+                },
+            },
+            status_code=200,
+        )
+
+        result = client.get_message(12345)
+
+        assert result.electronic.attachments == [
+            ReceivedAttachment(
+                attachment_id="att-uuid-123",
+                filename="document.pdf",
+                media_type="application/pdf",
+                size_bytes=12345,
+            )
+        ]
+        assert result.electronic.thread == MessageThread(
+            root_message_id=99999,
+            thread_external_id="ext-thread-1",
+        )
+        assert result.sender is None
+
+    def test_get_message_with_person_on_behalf(self, client, requests_mock):
+        """Test message retrieval parses person sending on behalf of mailbox owner."""
+        requests_mock.get(
+            client.url("v2/messages/12345"),
+            json={
+                "messageId": 12345,
+                "createdAt": "2024-01-01T12:00:00Z",
+                "electronic": {
+                    "messageId": 12345,
+                    "createdAt": "2024-01-01T12:00:00Z",
+                    "title": "Test Message",
+                    "body": "Message content",
+                    "attachments": [],
+                },
+                "sender": {
+                    "mailboxOwner": {
+                        "id": "123456-789A",
+                        "name": "Matti Meikäläinen",
+                    },
+                    "personSendingMessageOnBehalfOfMailboxOwner": {
+                        "id": "987654-321B",
+                        "name": "Maija Virtanen",
+                    },
+                },
+            },
+            status_code=200,
+        )
+
+        result = client.get_message(12345)
+
+        assert result.sender == MessageSender(
+            mailbox_owner=MessageSenderActor(
+                id="123456-789A", name="Matti Meikäläinen"
+            ),
+            person_sending_on_behalf=MessageSenderActor(
+                id="987654-321B", name="Maija Virtanen"
+            ),
+        )
+
+    def test_get_message_with_thread_without_external_id(self, client, requests_mock):
+        """Test message retrieval with a thread that has no threadExternalId."""
+        requests_mock.get(
+            client.url("v2/messages/12345"),
+            json={
+                "messageId": 12345,
+                "createdAt": "2024-01-01T12:00:00Z",
+                "electronic": {
+                    "messageId": 12345,
+                    "createdAt": "2024-01-01T12:00:00Z",
+                    "title": "Test Message",
+                    "body": "Message content",
+                    "attachments": [],
+                    "thread": {
+                        "rootMessageId": 99999,
+                    },
+                },
+            },
+            status_code=200,
+        )
+
+        result = client.get_message(12345)
+
+        assert result.electronic.thread == MessageThread(
+            root_message_id=99999,
+            thread_external_id=None,
+        )
 
     def test_get_message_raises_on_error(self, client, requests_mock):
-        """Test that get_message raises on HTTP error."""
+        """Test that get_message raises SuomiFiAPIError on HTTP error."""
         requests_mock.get(
-            client.url("v1/messages/nonexistent"),
+            client.url("v2/messages/99999"),
             status_code=404,
         )
 
-        with pytest.raises(requests.HTTPError):
-            client.get_message("nonexistent")
+        with pytest.raises(SuomiFiAPIError, match="Failed to retrieve message"):
+            client.get_message(99999)
 
 
 class TestSuomiFiClientGetAttachment:
