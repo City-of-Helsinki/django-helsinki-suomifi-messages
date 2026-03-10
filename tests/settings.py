@@ -63,3 +63,15 @@ STATIC_URL = "static/"
 LANGUAGE_CODE = "en"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Library settings
+
+# Suomi.fi test credentials
+SUOMIFI_USERNAME = "test_user"
+SUOMIFI_PASSWORD = "test_pass"
+SUOMIFI_SERVICE_ID = "test_service_123"
+
+# Posti test credentials
+SUOMIFI_POSTI_EMAIL = "posti@example.com"
+SUOMIFI_POSTI_USERNAME = "123456"
+SUOMIFI_POSTI_PASSWORD = "1234"

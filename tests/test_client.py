@@ -71,19 +71,16 @@ def sender_address():
 
 
 @pytest.fixture
-def posti_settings(settings):
-    """Configure Posti credentials for paper mail tests."""
-    settings.SUOMIFI_POSTI_EMAIL = "posti@example.com"
-    settings.SUOMIFI_POSTI_USERNAME = "123456"
-    settings.SUOMIFI_POSTI_PASSWORD = "1234"
-    return settings
+def suomifi_settings(monkeypatch):
+    """Patch suomifi_messages.settings attributes for a test
+    (e.g. suomifi_settings.FOO = "bar")."""
+    import suomifi_messages.settings as _settings
 
+    class SettingsPatcher:
+        def __setattr__(self, name, value):
+            monkeypatch.setattr(_settings, name, value)
 
-@pytest.fixture
-def service_id_settings(settings):
-    """Configure service ID for message sending tests."""
-    settings.SUOMIFI_SERVICE_ID = "test_service_123"
-    return settings
+    return SettingsPatcher()
 
 
 class TestSuomiFiClientInit:
@@ -183,14 +180,6 @@ class TestSuomiFiClientRequests:
 class TestSuomiFiClientLogin:
     """Test SuomiFiClient login functionality."""
 
-    @pytest.fixture
-    def mock_settings(self, settings):
-        """Configure Django settings for tests."""
-        settings.SUOMIFI_USERNAME = "test_user"
-        settings.SUOMIFI_PASSWORD = "test_pass"
-        return settings
-
-    @pytest.mark.usefixtures("mock_settings")
     def test_login_success(self, client, requests_mock):
         """Test successful login."""
         requests_mock.post(
@@ -231,7 +220,6 @@ class TestSuomiFiClientLogin:
         }
         assert client.token == "custom_token"
 
-    @pytest.mark.usefixtures("mock_settings")
     def test_login_failure_non_200_status(self, client, requests_mock):
         """Test login failure with non-200 status code."""
         requests_mock.post(
@@ -243,7 +231,6 @@ class TestSuomiFiClientLogin:
         with pytest.raises(SuomiFiAPIError, match="Authentication failed"):
             client.login()
 
-    @pytest.mark.usefixtures("mock_settings")
     def test_login_uses_settings_by_default(self, client, requests_mock):
         """Test that login uses Django settings by default."""
         requests_mock.post(
@@ -393,7 +380,6 @@ class TestSuomiFiClientCheckMailbox:
             client.check_mailbox("123456-789A")
 
 
-@pytest.mark.usefixtures("service_id_settings")
 class TestSuomiFiClientSendElectronicMessage:
     """Test SuomiFiClient electronic message sending functionality."""
 
@@ -475,9 +461,9 @@ class TestSuomiFiClientSendElectronicMessage:
                 recipient_id="123456-789A",
             )
 
-    def test_send_electronic_message_missing_service_id(self, settings):
+    def test_send_electronic_message_missing_service_id(self, suomifi_settings):
         """Test that ValueError is raised when service_id is missing."""
-        settings.SUOMIFI_SERVICE_ID = None
+        suomifi_settings.SUOMIFI_SERVICE_ID = ""
 
         client = SuomiFiClient()
         client.base_url = "https://foo-bar.baz.test/"
@@ -491,7 +477,6 @@ class TestSuomiFiClientSendElectronicMessage:
             )
 
 
-@pytest.mark.usefixtures("service_id_settings", "posti_settings")
 class TestSuomiFiClientSendMultichannelMessage:
     """Test SuomiFiClient multichannel message sending functionality."""
 
@@ -574,10 +559,10 @@ class TestSuomiFiClientSendMultichannelMessage:
         assert request_json["externalId"] == custom_external_id
 
     def test_send_multichannel_message_missing_service_id(
-        self, settings, recipient_address, sender_address
+        self, suomifi_settings, recipient_address, sender_address
     ):
         """Test that ValueError is raised when service_id is missing."""
-        settings.SUOMIFI_SERVICE_ID = None
+        suomifi_settings.SUOMIFI_SERVICE_ID = ""
 
         client = SuomiFiClient()
         client.base_url = "https://foo-bar.baz.test/"
@@ -1185,18 +1170,16 @@ class TestBuildElectronicMessage:
         assert electronic_msg == expected
 
 
-@pytest.mark.usefixtures("posti_settings")
 class TestBuildPaperMailMessage:
     """Test paper mail message builder."""
 
     def test_build_paper_mail_missing_credentials_raises_error(
-        self, client, settings, recipient_address, sender_address
+        self, client, suomifi_settings, recipient_address, sender_address
     ):
         """Verify error is raised when Posti credentials are not configured."""
-        # Override fixture to test missing credentials
-        settings.SUOMIFI_POSTI_EMAIL = ""
-        settings.SUOMIFI_POSTI_USERNAME = ""
-        settings.SUOMIFI_POSTI_PASSWORD = ""
+        suomifi_settings.SUOMIFI_POSTI_EMAIL = ""
+        suomifi_settings.SUOMIFI_POSTI_USERNAME = ""
+        suomifi_settings.SUOMIFI_POSTI_PASSWORD = ""
 
         with pytest.raises(SuomiFiError, match="Paper mail requires Posti credentials"):
             client.build_paper_mail_message(

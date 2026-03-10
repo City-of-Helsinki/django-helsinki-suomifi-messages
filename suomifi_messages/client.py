@@ -4,8 +4,8 @@ import uuid
 from urllib.parse import urljoin, urlsplit
 
 import requests
-from django.conf import settings
 
+from suomifi_messages import settings
 from suomifi_messages.errors import SuomiFiAPIError, SuomiFiError
 from suomifi_messages.schemas import (
     Address,
@@ -157,10 +157,9 @@ class SuomiFiClient:
         :rtype: PaperMailPart
         :raises SuomiFiError: If Posti credentials are not configured
         """
-        # Get Posti credentials dynamically (they may be set in tests)
-        posti_email = getattr(settings, "SUOMIFI_POSTI_EMAIL", "")
-        posti_username = getattr(settings, "SUOMIFI_POSTI_USERNAME", "")
-        posti_password = getattr(settings, "SUOMIFI_POSTI_PASSWORD", "")
+        posti_email = settings.SUOMIFI_POSTI_EMAIL
+        posti_username = settings.SUOMIFI_POSTI_USERNAME
+        posti_password = settings.SUOMIFI_POSTI_PASSWORD
 
         # Verify Posti credentials are configured
         if not all([posti_email, posti_username, posti_password]):
@@ -289,12 +288,10 @@ class SuomiFiClient:
         :raises SuomiFiAPIError: If message send fails (e.g., mailbox not active,
             replied-to message not found)
         """
-        if not (
-            service_id := service_id or getattr(settings, "SUOMIFI_SERVICE_ID", "")
-        ):
+        if not (service_id := service_id or settings.SUOMIFI_SERVICE_ID):
             raise ValueError(
                 "Suomi.fi service_id is not configured. Pass service_id explicitly "
-                "to this method or define settings.SUOMIFI_SERVICE_ID in your "
+                "to this method or define SUOMIFI_SERVICE_ID in your "
                 "Django settings."
             )
         attachment_ids = attachment_ids or []
@@ -374,12 +371,10 @@ class SuomiFiClient:
         :raises SuomiFiAPIError: If message send fails
         """
 
-        if not (
-            service_id := service_id or getattr(settings, "SUOMIFI_SERVICE_ID", "")
-        ):
+        if not (service_id := service_id or settings.SUOMIFI_SERVICE_ID):
             raise ValueError(
                 "Suomi.fi service_id is not configured. Pass service_id explicitly "
-                "to this method or define settings.SUOMIFI_SERVICE_ID in your "
+                "to this method or define SUOMIFI_SERVICE_ID in your "
                 "Django settings."
             )
         electronic_attachment_ids = electronic_attachment_ids or []
