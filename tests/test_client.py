@@ -195,8 +195,8 @@ class TestSuomiFiClientLogin:
         client.login()
 
         assert requests_mock.last_request.json() == {
-            "username": "test_user",
-            "password": "test_pass",
+            "username": "suomifi_username",
+            "password": "suomifi_password",
         }
         assert client.token == "test_token_123"
         assert client.token_expiry == 3600
@@ -394,7 +394,7 @@ class TestSuomiFiClientSendElectronicMessage:
         request_json = requests_mock.last_request.json()
         assert request_json == {
             "electronic": mock_electronic,
-            "sender": {"serviceId": "test_service_123"},
+            "sender": {"serviceId": "suomifi_service_id"},
             "recipient": {"id": "123456-789A"},
             "externalId": request_json["externalId"],  # UUID, generated
         }
@@ -499,7 +499,7 @@ class TestSuomiFiClientSendMultichannelMessage:
         assert request_json == {
             "electronic": mock_electronic,
             "paperMail": mock_paper,
-            "sender": {"serviceId": "test_service_123"},
+            "sender": {"serviceId": "suomifi_service_id"},
             "recipient": {"id": "123456-789A"},
             "externalId": request_json["externalId"],  # UUID, generated
         }
@@ -1210,9 +1210,9 @@ class TestBuildPaperMailMessage:
             ),
             printing_and_enveloping_service=PrintingAndEnvelopingService(
                 posti_messaging=PostiMessaging(
-                    contact_details={"email": "posti@example.com"},
-                    password="1234",
-                    username="123456",
+                    contact_details={"email": "suomifi_posti_email"},
+                    password="suomifi_posti_password",
+                    username="suomifi_posti_username",
                 ),
             ),
             rotate_landscape_pages=False,
@@ -1254,9 +1254,9 @@ class TestBuildPaperMailMessage:
             ),
             printing_and_enveloping_service=PrintingAndEnvelopingService(
                 posti_messaging=PostiMessaging(
-                    contact_details={"email": "posti@example.com"},
-                    password="1234",
-                    username="123456",
+                    contact_details={"email": "suomifi_posti_email"},
+                    password="suomifi_posti_password",
+                    username="suomifi_posti_username",
                 ),
             ),
             rotate_landscape_pages=False,
