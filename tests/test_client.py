@@ -181,7 +181,7 @@ class TestSuomiFiClientLogin:
     """Test SuomiFiClient login functionality."""
 
     def test_login_success(self, client, requests_mock):
-        """Test successful login."""
+        """Test successful login uses Django settings and parses the response."""
         requests_mock.post(
             client.url("v1/token"),
             json={
@@ -194,6 +194,10 @@ class TestSuomiFiClientLogin:
 
         client.login()
 
+        assert requests_mock.last_request.json() == {
+            "username": "test_user",
+            "password": "test_pass",
+        }
         assert client.token == "test_token_123"
         assert client.token_expiry == 3600
         assert client.token_type == "Bearer"
@@ -230,25 +234,6 @@ class TestSuomiFiClientLogin:
 
         with pytest.raises(SuomiFiAPIError, match="Authentication failed"):
             client.login()
-
-    def test_login_uses_settings_by_default(self, client, requests_mock):
-        """Test that login uses Django settings by default."""
-        requests_mock.post(
-            client.url("v1/token"),
-            json={
-                "access_token": "token",
-                "expires_in": 3600,
-                "token_type": "Bearer",
-            },
-            status_code=200,
-        )
-
-        client.login()
-
-        assert requests_mock.last_request.json() == {
-            "username": "test_user",
-            "password": "test_pass",
-        }
 
 
 class TestSuomiFiClientChangePassword:
@@ -1189,56 +1174,34 @@ class TestBuildPaperMailMessage:
                 verifiable=False,
             )
 
-    def test_build_paper_mail_with_minimal_args(
-        self, client, recipient_address, sender_address
-    ):
-        """Build paper mail with only required address info."""
-        paper_mail = client.build_paper_mail_message(
-            recipient_address=recipient_address,
-            sender_address=sender_address,
-            attachment_id="att_1",
-            verifiable=False,
-        )
-
-        expected = PaperMailPart(
-            color_printing=True,
-            create_address_page=True,
-            attachments=[AttachmentReference(attachment_id="att_1")],
-            message_service_type=MessageServiceType.NORMAL,
-            recipient=NewPaperMailRecipient(
-                address=recipient_address,
-            ),
-            sender=NewPaperMailSender(
-                address=sender_address,
-            ),
-            printing_and_enveloping_service=PrintingAndEnvelopingService(
-                posti_messaging=PostiMessaging(
-                    contact_details={"email": "posti@example.com"},
-                    password="1234",
-                    username="123456",
-                ),
-            ),
-            rotate_landscape_pages=False,
-            two_sided_printing=False,
-        )
-        assert paper_mail == expected
-
+    @pytest.mark.parametrize(
+        "verifiable,expected_service_type",
+        [
+            (False, MessageServiceType.NORMAL),
+            (True, MessageServiceType.VERIFIABLE),
+        ],
+    )
     def test_build_paper_mail_with_verifiable(
-        self, client, recipient_address, sender_address
+        self,
+        client,
+        recipient_address,
+        sender_address,
+        verifiable,
+        expected_service_type,
     ):
-        """Build verifiable paper mail message."""
+        """Build paper mail with and without verifiable flag."""
         paper_mail = client.build_paper_mail_message(
             recipient_address=recipient_address,
             sender_address=sender_address,
             attachment_id="att_1",
-            verifiable=True,
+            verifiable=verifiable,
         )
 
         expected = PaperMailPart(
             color_printing=True,
             create_address_page=True,
             attachments=[AttachmentReference(attachment_id="att_1")],
-            message_service_type=MessageServiceType.VERIFIABLE,
+            message_service_type=expected_service_type,
             recipient=NewPaperMailRecipient(
                 address=recipient_address,
             ),
