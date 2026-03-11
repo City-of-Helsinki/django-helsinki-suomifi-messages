@@ -70,19 +70,6 @@ def sender_address():
     )
 
 
-@pytest.fixture
-def suomifi_settings(monkeypatch):
-    """Patch suomifi_messages.settings attributes for a test
-    (e.g. suomifi_settings.FOO = "bar")."""
-    import suomifi_messages.settings as _settings
-
-    class SettingsPatcher:
-        def __setattr__(self, name, value):
-            monkeypatch.setattr(_settings, name, value)
-
-    return SettingsPatcher()
-
-
 class TestSuomiFiClientInit:
     """Test SuomiFiClient initialization and basic utilities."""
 
@@ -446,9 +433,9 @@ class TestSuomiFiClientSendElectronicMessage:
                 recipient_id="123456-789A",
             )
 
-    def test_send_electronic_message_missing_service_id(self, suomifi_settings):
+    def test_send_electronic_message_missing_service_id(self, settings):
         """Test that ValueError is raised when service_id is missing."""
-        suomifi_settings.SUOMIFI_SERVICE_ID = ""
+        settings.SUOMIFI_SERVICE_ID = ""
 
         client = SuomiFiClient()
         client.base_url = "https://foo-bar.baz.test/"
@@ -544,10 +531,10 @@ class TestSuomiFiClientSendMultichannelMessage:
         assert request_json["externalId"] == custom_external_id
 
     def test_send_multichannel_message_missing_service_id(
-        self, suomifi_settings, recipient_address, sender_address
+        self, settings, recipient_address, sender_address
     ):
         """Test that ValueError is raised when service_id is missing."""
-        suomifi_settings.SUOMIFI_SERVICE_ID = ""
+        settings.SUOMIFI_SERVICE_ID = ""
 
         client = SuomiFiClient()
         client.base_url = "https://foo-bar.baz.test/"
@@ -1159,12 +1146,12 @@ class TestBuildPaperMailMessage:
     """Test paper mail message builder."""
 
     def test_build_paper_mail_missing_credentials_raises_error(
-        self, client, suomifi_settings, recipient_address, sender_address
+        self, client, settings, recipient_address, sender_address
     ):
         """Verify error is raised when Posti credentials are not configured."""
-        suomifi_settings.SUOMIFI_POSTI_EMAIL = ""
-        suomifi_settings.SUOMIFI_POSTI_USERNAME = ""
-        suomifi_settings.SUOMIFI_POSTI_PASSWORD = ""
+        settings.SUOMIFI_POSTI_EMAIL = ""
+        settings.SUOMIFI_POSTI_USERNAME = ""
+        settings.SUOMIFI_POSTI_PASSWORD = ""
 
         with pytest.raises(SuomiFiError, match="Paper mail requires Posti credentials"):
             client.build_paper_mail_message(
