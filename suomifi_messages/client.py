@@ -5,7 +5,7 @@ from urllib.parse import urljoin, urlsplit
 
 import requests
 
-from suomifi_messages import settings
+from suomifi_messages import app_settings
 from suomifi_messages.errors import SuomiFiAPIError, SuomiFiError
 from suomifi_messages.schemas import (
     Address,
@@ -97,8 +97,8 @@ class SuomiFiClient:
 
     def login(self, username: str = "", password: str = ""):
         auth_params = {
-            "username": username or settings.SUOMIFI_USERNAME,
-            "password": password or settings.SUOMIFI_PASSWORD,
+            "username": username or app_settings.USERNAME,
+            "password": password or app_settings.PASSWORD,
         }
 
         def mask_password(password: str) -> str:
@@ -157,9 +157,9 @@ class SuomiFiClient:
         :rtype: PaperMailPart
         :raises SuomiFiError: If Posti credentials are not configured
         """
-        posti_email = settings.SUOMIFI_POSTI_EMAIL
-        posti_username = settings.SUOMIFI_POSTI_USERNAME
-        posti_password = settings.SUOMIFI_POSTI_PASSWORD
+        posti_email = app_settings.POSTI_EMAIL
+        posti_username = app_settings.POSTI_USERNAME
+        posti_password = app_settings.POSTI_PASSWORD
 
         # Verify Posti credentials are configured
         if not all([posti_email, posti_username, posti_password]):
@@ -272,7 +272,8 @@ class SuomiFiClient:
         :param body: Message body content
         :param body_format: Body format (TEXT or MARKDOWN)
         :param recipient_id: Recipient ID (SSN or business ID)
-        :param service_id: Service ID, uses settings.SUOMIFI_SERVICE_ID if not provided
+        :param service_id: Service ID, uses app_settings.SERVICE_ID
+            if not provided
         :param reply_to: Message ID to reply to (optional)
         :param attachment_ids: List of attachment IDs (optional)
         :param external_id: External ID for idempotency, generates UUID if
@@ -288,7 +289,7 @@ class SuomiFiClient:
         :raises SuomiFiAPIError: If message send fails (e.g., mailbox not active,
             replied-to message not found)
         """
-        if not (service_id := service_id or settings.SUOMIFI_SERVICE_ID):
+        if not (service_id := service_id or app_settings.SERVICE_ID):
             raise ValueError(
                 "Suomi.fi service_id is not configured. Pass service_id explicitly "
                 "to this method or define SUOMIFI_SERVICE_ID in your "
@@ -355,7 +356,8 @@ class SuomiFiClient:
         :param recipient_address: Postal address for paper mail delivery
         :param sender_address: Sender's postal address for paper mail
         :param paper_mail_attachment_id: Attachment ID for paper mail (required)
-        :param service_id: Service ID, uses settings.SUOMIFI_SERVICE_ID if not provided
+        :param service_id: Service ID, uses app_settings.SERVICE_ID
+            if not provided
         :param reply_to: Message ID to reply to (optional)
         :param electronic_attachment_ids: List of attachment IDs for electronic message
             (optional)
@@ -371,7 +373,7 @@ class SuomiFiClient:
         :raises SuomiFiAPIError: If message send fails
         """
 
-        if not (service_id := service_id or settings.SUOMIFI_SERVICE_ID):
+        if not (service_id := service_id or app_settings.SERVICE_ID):
             raise ValueError(
                 "Suomi.fi service_id is not configured. Pass service_id explicitly "
                 "to this method or define SUOMIFI_SERVICE_ID in your "
