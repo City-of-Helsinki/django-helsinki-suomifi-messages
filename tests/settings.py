@@ -66,11 +66,11 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Library settings
 
 # Suomi.fi test credentials
-SUOMIFI_USERNAME = "test_user"
-SUOMIFI_PASSWORD = "test_pass"
-SUOMIFI_SERVICE_ID = "test_service_123"
+SUOMIFI_USERNAME = "suomifi_username"
+SUOMIFI_PASSWORD = "suomifi_password"
+SUOMIFI_SERVICE_ID = "suomifi_service_id"
 
 # Posti test credentials
-SUOMIFI_POSTI_EMAIL = "posti@example.com"
-SUOMIFI_POSTI_USERNAME = "123456"
-SUOMIFI_POSTI_PASSWORD = "1234"
+SUOMIFI_POSTI_EMAIL = "suomifi_posti_email"
+SUOMIFI_POSTI_USERNAME = "suomifi_posti_username"
+SUOMIFI_POSTI_PASSWORD = "suomifi_posti_password"
