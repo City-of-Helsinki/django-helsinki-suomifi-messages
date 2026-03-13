@@ -27,6 +27,7 @@ from suomifi_messages.schemas import (
     NewPaperMailRecipient,
     NewPaperMailSender,
     PaperMailPart,
+    PaperMailWithoutIdRequestBody,
     PostiMessaging,
     PrintingAndEnvelopingService,
     ReceivedAttachment,
@@ -410,6 +411,64 @@ class SuomiFiClient:
 
         response = self.post("/v2/messages", json=dataclass_to_dict(payload))
         self._raise_for_status(response, "Failed to send multichannel message")
+
+        return response.json()["messageId"], external_id
+
+    def send_paper_mail_without_id(
+        self,
+        recipient_address: Address,
+        sender_address: Address,
+        attachment_id: str,
+        service_id: str | None = None,
+        external_id: str | None = None,
+        verifiable: bool = False,
+    ) -> tuple[int, str]:
+        """
+        Send paper mail without using the recipient's personal identity code or
+        business ID.
+
+        Use this when the recipient's identity code is not known or not required.
+        The recipient is identified solely by their postal address.
+
+        :param recipient_address: Recipient postal address
+        :param sender_address: Sender postal address
+        :param attachment_id: Attachment ID for the paper mail content
+        :param service_id: Service ID, uses app_settings.SERVICE_ID if not provided
+        :param external_id: External ID for idempotency, generates UUID if not provided
+        :param verifiable: Whether to send as verifiable message
+        :returns: Tuple of (message_id, external_id) where message_id is the
+            Suomi.fi unique identifier (int) for tracking, and external_id is
+            your system's identifier (str) used for idempotency
+        :rtype: tuple[int, str]
+        :raises ValueError: If service_id is not provided or configured
+        :raises SuomiFiAPIError: If message send fails
+        """
+        if not (service_id := service_id or app_settings.SERVICE_ID):
+            raise ValueError(
+                "Suomi.fi service_id is not configured. Pass service_id explicitly "
+                "to this method or define SUOMIFI_SERVICE_ID in your "
+                "Django settings."
+            )
+        external_id = external_id or str(uuid.uuid4())
+
+        paper_mail = self.build_paper_mail_message(
+            recipient_address=recipient_address,
+            sender_address=sender_address,
+            attachment_id=attachment_id,
+            verifiable=verifiable,
+        )
+        payload = PaperMailWithoutIdRequestBody(
+            external_id=external_id,
+            paper_mail=paper_mail,
+            sender=Sender(service_id=service_id),
+        )
+
+        logger.debug("Sending paper mail to /v2/paper-mail-without-id")
+
+        response = self.post(
+            "/v2/paper-mail-without-id", json=dataclass_to_dict(payload)
+        )
+        self._raise_for_status(response, "Failed to send paper mail without id")
 
         return response.json()["messageId"], external_id
 

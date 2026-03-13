@@ -272,6 +272,18 @@ class MultichannelMessageRequestBody:
 
 
 @dataclass
+class PaperMailWithoutIdRequestBody:
+    """
+    Request body for sending paper mail without a recipient identity code via
+    Suomi.fi Messages API v2.
+    """
+
+    external_id: str
+    paper_mail: PaperMailPart
+    sender: Sender
+
+
+@dataclass
 class EndUserId:
     """End user identifier (personal identity code or business ID)."""
 

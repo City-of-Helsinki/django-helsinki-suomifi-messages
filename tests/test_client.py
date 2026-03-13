@@ -574,6 +574,101 @@ class TestSuomiFiClientSendMultichannelMessage:
             )
 
 
+class TestSuomiFiClientSendPaperMailWithoutId:
+    """Test SuomiFiClient paper mail without ID sending functionality."""
+
+    def test_send_paper_mail_without_id_success(
+        self, client, requests_mock, recipient_address, sender_address, mocker
+    ):
+        """Test sending paper mail without ID successfully."""
+        mock_paper = {"attachments": [{"attachmentId": "att_1"}]}
+        mocker.patch.object(client, "build_paper_mail_message", return_value=mock_paper)
+
+        requests_mock.post(
+            client.url("v2/paper-mail-without-id"),
+            json={"messageId": 12345},
+            status_code=200,
+        )
+
+        result = client.send_paper_mail_without_id(
+            recipient_address=recipient_address,
+            sender_address=sender_address,
+            attachment_id="att_paper_1",
+        )
+
+        request_json = requests_mock.last_request.json()
+        assert request_json == {
+            "paperMail": mock_paper,
+            "sender": {"serviceId": "suomifi_service_id"},
+            "externalId": request_json["externalId"],
+        }
+
+        message_id, external_id = result
+        assert message_id == 12345
+        assert external_id == request_json["externalId"]
+
+    def test_send_paper_mail_without_id_with_custom_ids(
+        self, client, requests_mock, recipient_address, sender_address
+    ):
+        """Test sending paper mail without ID with custom service and external IDs."""
+        requests_mock.post(
+            client.url("v2/paper-mail-without-id"),
+            json={"messageId": 12345},
+            status_code=200,
+        )
+        custom_external_id = str(uuid.uuid4())
+
+        result = client.send_paper_mail_without_id(
+            recipient_address=recipient_address,
+            sender_address=sender_address,
+            attachment_id="att_paper_1",
+            service_id="custom_service_456",
+            external_id=custom_external_id,
+        )
+
+        message_id, external_id = result
+        assert message_id == 12345
+        assert external_id == custom_external_id
+        request_json = requests_mock.last_request.json()
+        assert request_json["sender"]["serviceId"] == "custom_service_456"
+        assert request_json["externalId"] == custom_external_id
+
+    def test_send_paper_mail_without_id_missing_service_id(
+        self, settings, recipient_address, sender_address
+    ):
+        """Test that ValueError is raised when service_id is missing."""
+        settings.SUOMIFI_SERVICE_ID = ""
+
+        client = SuomiFiClient()
+        client.base_url = "https://foo-bar.baz.test/"
+
+        with pytest.raises(ValueError, match="Suomi.fi service_id is not configured."):
+            client.send_paper_mail_without_id(
+                recipient_address=recipient_address,
+                sender_address=sender_address,
+                attachment_id="att_1",
+            )
+
+    def test_send_paper_mail_without_id_failure(
+        self, client, requests_mock, recipient_address, sender_address
+    ):
+        """Test paper mail without ID send failure."""
+        requests_mock.post(
+            client.url("v2/paper-mail-without-id"),
+            json={"error": "Invalid message format"},
+            status_code=400,
+        )
+
+        with pytest.raises(
+            SuomiFiAPIError, match="Failed to send paper mail without id"
+        ):
+            client.send_paper_mail_without_id(
+                recipient_address=recipient_address,
+                sender_address=sender_address,
+                attachment_id="att_1",
+            )
+
+
 class TestSuomiFiClientGetEvents:
     """Test SuomiFiClient event retrieval functionality."""
 
