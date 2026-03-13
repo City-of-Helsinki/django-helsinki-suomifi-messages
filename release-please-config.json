@@ -3,7 +3,7 @@
   "packages": {
     ".": {
       "release-type": "python",
-      "package-name": "django-helsinki-notification",
+      "package-name": "django-helsinki-suomifi-messages",
       "exclude-paths": ["tests"],
       "include-component-in-tag": false,
       "extra-files": ["pyproject.toml"],
