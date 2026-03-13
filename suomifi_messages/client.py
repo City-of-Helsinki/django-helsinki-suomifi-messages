@@ -133,15 +133,7 @@ class SuomiFiClient:
             "password": password or app_settings.PASSWORD,
         }
 
-        def mask_password(password: str) -> str:
-            if password:
-                return password[0] + "*" * (len(password) - 1)
-            return ""
-
-        logger.debug(
-            f"Logging in with username: {auth_params['username']}, "
-            f"password: {mask_password(auth_params['password'])}"
-        )
+        logger.debug(f"Logging in with username: {auth_params['username']}")
 
         response = self.post("/v1/token", json=auth_params)
         self._raise_for_status(response, "Authentication failed")
@@ -158,6 +150,8 @@ class SuomiFiClient:
             {"Authorization": self.token, "Host": self.hostname}
         )
 
+        logger.debug("Login successful")
+
     def change_password(self, current_password, new_password):
         pw_change_request = {
             "currentPassword": current_password,
@@ -166,9 +160,11 @@ class SuomiFiClient:
         }
 
         # Password change is a special case that does not use Authorization-header
+        logger.debug("Changing password")
         response = self.post("/v1/change-password", json=pw_change_request)
         self._raise_for_status(response, "Password change failed")
 
+        logger.debug("Password changed successfully")
         return response.json()
 
     def build_paper_mail_message(
@@ -355,11 +351,12 @@ class SuomiFiClient:
         )
 
         logger.debug("Sending electronic message to /v2/messages/electronic")
-
         response = self.post("/v2/messages/electronic", json=dataclass_to_dict(payload))
         self._raise_for_status(response, "Failed to send electronic message")
 
-        return response.json()["messageId"], external_id
+        message_id = response.json()["messageId"]
+        logger.debug(f"Electronic message sent: {message_id=}, {external_id=}")
+        return message_id, external_id
 
     def send_multichannel_message(
         self,
@@ -446,12 +443,13 @@ class SuomiFiClient:
             sender=Sender(service_id=service_id),
         )
 
-        logger.debug("Sending message to /v2/messages")
-
+        logger.debug("Sending multichannel message to /v2/messages")
         response = self.post("/v2/messages", json=dataclass_to_dict(payload))
         self._raise_for_status(response, "Failed to send multichannel message")
 
-        return response.json()["messageId"], external_id
+        message_id = response.json()["messageId"]
+        logger.debug(f"Multichannel message sent: {message_id=}, {external_id=}")
+        return message_id, external_id
 
     def send_paper_mail_without_id(
         self,
@@ -508,13 +506,14 @@ class SuomiFiClient:
         )
 
         logger.debug("Sending paper mail to /v2/paper-mail-without-id")
-
         response = self.post(
             "/v2/paper-mail-without-id", json=dataclass_to_dict(payload)
         )
         self._raise_for_status(response, "Failed to send paper mail without id")
 
-        return response.json()["messageId"], external_id
+        message_id = response.json()["messageId"]
+        logger.debug(f"Paper mail without ID sent: {message_id=}, {external_id=}")
+        return message_id, external_id
 
     def check_mailboxes(self, recipient_ids: list[str]) -> list[str]:
         """
