@@ -1,3 +1,4 @@
+import json
 import uuid
 from datetime import datetime
 
@@ -9,7 +10,13 @@ from suomifi_messages.client import (
     SUOMIFI_QA_BASE_URL,
     SuomiFiClient,
 )
-from suomifi_messages.errors import SuomiFiAPIError, SuomiFiError
+from suomifi_messages.errors import (
+    SuomiFiAPIError,
+    SuomiFiClientError,
+    SuomiFiDuplicateMessageError,
+    SuomiFiError,
+    SuomiFiServerError,
+)
 from suomifi_messages.schemas import (
     Address,
     AttachmentReference,
@@ -44,6 +51,20 @@ def client():
     client = SuomiFiClient()
     client.base_url = "https://foo-bar.baz.test/"
     return client
+
+
+@pytest.fixture
+def make_response():
+    """Factory fixture for building requests.Response objects without HTTP mocking."""
+
+    def _make_response(status_code, json_body=None):
+        response = requests.Response()
+        response.status_code = status_code
+        response._content = json.dumps(json_body or {}).encode()
+        response.headers["Content-Type"] = "application/json"
+        return response
+
+    return _make_response
 
 
 @pytest.fixture
@@ -114,6 +135,59 @@ class TestSuomiFiClientInit:
         url = client.url(path)
 
         assert url == "https://foo.bar/v1/endpoint"
+
+
+class TestRaiseForStatus:
+    """Test SuomiFiClient._raise_for_status error routing."""
+
+    def test_409_raises_duplicate_message_error_with_message_id(
+        self, client, make_response
+    ):
+        """Test that 409 with messageId raises SuomiFiDuplicateMessageError."""
+        response = make_response(409, {"messageId": 12345})
+
+        with pytest.raises(SuomiFiDuplicateMessageError) as exc_info:
+            client._raise_for_status(response, "Test error")
+
+        assert exc_info.value.message_id == 12345
+
+    def test_409_raises_duplicate_message_error_without_message_id(
+        self, client, make_response
+    ):
+        """Test that 409 without messageId raises SuomiFiDuplicateMessageError."""
+        response = make_response(409, {"error": "conflict"})
+
+        with pytest.raises(SuomiFiDuplicateMessageError) as exc_info:
+            client._raise_for_status(response, "Test error")
+
+        assert exc_info.value.message_id is None
+
+    def test_4xx_raises_client_error(self, client, make_response):
+        """Test that 4xx (non-409) raises SuomiFiClientError."""
+        response = make_response(400, {"error": "bad request"})
+
+        with pytest.raises(SuomiFiClientError):
+            client._raise_for_status(response, "Test error")
+
+    def test_5xx_raises_server_error(self, client, make_response):
+        """Test that 5xx raises SuomiFiServerError."""
+        response = make_response(500, {"error": "server error"})
+
+        with pytest.raises(SuomiFiServerError):
+            client._raise_for_status(response, "Test error")
+
+    def test_2xx_does_not_raise(self, client, make_response):
+        """Test that 2xx responses do not raise."""
+        response = make_response(200, {"ok": True})
+
+        client._raise_for_status(response, "Test error")  # should not raise
+
+    def test_3xx_raises_api_error(self, client, make_response):
+        """Test that 3xx (and other non-2xx outside 4xx/5xx) raises SuomiFiAPIError."""
+        response = make_response(302, {})
+
+        with pytest.raises(SuomiFiAPIError):
+            client._raise_for_status(response, "Test error")
 
 
 class TestSuomiFiClientRequests:

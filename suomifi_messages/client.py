@@ -6,7 +6,13 @@ from urllib.parse import urljoin, urlsplit
 import requests
 
 from suomifi_messages import app_settings
-from suomifi_messages.errors import SuomiFiAPIError, SuomiFiError
+from suomifi_messages.errors import (
+    SuomiFiAPIError,
+    SuomiFiClientError,
+    SuomiFiDuplicateMessageError,
+    SuomiFiError,
+    SuomiFiServerError,
+)
 from suomifi_messages.schemas import (
     Address,
     AttachmentReference,
@@ -84,12 +90,37 @@ class SuomiFiClient:
         return self.request("GET", path, params=params, **kwargs)
 
     def _raise_for_status(self, response: requests.Response, error_message: str):
-        """Check response status and raise SuomiFiAPIError if not successful.
+        """Check response status and raise an appropriate error if not successful.
 
         :param response: HTTP response to check
         :param error_message: Error message to use (status code will be appended)
-        :raises SuomiFiAPIError: If response status is not in 2xx range
+        :raises SuomiFiDuplicateMessageError: If response status is 409
+        :raises SuomiFiClientError: If response status is 4xx (excluding 409)
+        :raises SuomiFiServerError: If response status is 5xx
+        :raises SuomiFiAPIError: If response status is not 2xx and not 4xx/5xx
         """
+        if response.status_code == 409:
+            response_body = safe_get_response_body(response)
+            message_id = (
+                response_body.get("messageId")
+                if isinstance(response_body, dict)
+                else None
+            )
+            raise SuomiFiDuplicateMessageError(
+                f"{error_message} (status 409)",
+                message_id=message_id,
+                response_body=response_body,
+            )
+        if 400 <= response.status_code < 500:
+            raise SuomiFiClientError(
+                f"{error_message} (status {response.status_code})",
+                response_body=safe_get_response_body(response),
+            )
+        if response.status_code >= 500:
+            raise SuomiFiServerError(
+                f"{error_message} (status {response.status_code})",
+                response_body=safe_get_response_body(response),
+            )
         if not (200 <= response.status_code < 300):
             raise SuomiFiAPIError(
                 f"{error_message} (status {response.status_code})",
@@ -287,8 +318,12 @@ class SuomiFiClient:
             is your system's identifier (str) used for idempotency
         :rtype: tuple[int, str]
         :raises ValueError: If service_id is not provided or configured
-        :raises SuomiFiAPIError: If message send fails (e.g., mailbox not active,
-            replied-to message not found)
+        :raises SuomiFiDuplicateMessageError: If a message with the same external ID
+            already exists (409)
+        :raises SuomiFiClientError: If the request is invalid (4xx, e.g., mailbox not
+            active, replied-to message not found)
+        :raises SuomiFiServerError: If the server fails (5xx)
+        :raises SuomiFiAPIError: If an unexpected non-2xx status is returned
         """
         if not (service_id := service_id or app_settings.SERVICE_ID):
             raise ValueError(
@@ -371,7 +406,11 @@ class SuomiFiClient:
             is your system's identifier (str) used for idempotency
         :rtype: tuple[int, str]
         :raises ValueError: If service_id is not provided or configured
-        :raises SuomiFiAPIError: If message send fails
+        :raises SuomiFiDuplicateMessageError: If a message with the same external ID
+            already exists (409)
+        :raises SuomiFiClientError: If the request is invalid (4xx)
+        :raises SuomiFiServerError: If the server fails (5xx)
+        :raises SuomiFiAPIError: If an unexpected non-2xx status is returned
         """
 
         if not (service_id := service_id or app_settings.SERVICE_ID):
@@ -442,7 +481,11 @@ class SuomiFiClient:
             your system's identifier (str) used for idempotency
         :rtype: tuple[int, str]
         :raises ValueError: If service_id is not provided or configured
-        :raises SuomiFiAPIError: If message send fails
+        :raises SuomiFiDuplicateMessageError: If a message with the same external ID
+            already exists (409)
+        :raises SuomiFiClientError: If the request is invalid (4xx)
+        :raises SuomiFiServerError: If the server fails (5xx)
+        :raises SuomiFiAPIError: If an unexpected non-2xx status is returned
         """
         if not (service_id := service_id or app_settings.SERVICE_ID):
             raise ValueError(
@@ -484,7 +527,9 @@ class SuomiFiClient:
             Maximum 10,000 IDs per request.
         :returns: List of recipient IDs that have active mailboxes
         :rtype: list[str]
-        :raises SuomiFiAPIError: If the mailbox check request fails
+        :raises SuomiFiClientError: If the request is invalid (4xx)
+        :raises SuomiFiServerError: If the server fails (5xx)
+        :raises SuomiFiAPIError: If an unexpected non-2xx status is returned
         """
         payload = EndUsers(
             end_users=[EndUserId(id=recipient_id) for recipient_id in recipient_ids]
@@ -515,7 +560,9 @@ class SuomiFiClient:
         :param recipient_id: Recipient ID (SSN or business ID)
         :returns: True if recipient has an active mailbox, False otherwise
         :rtype: bool
-        :raises SuomiFiAPIError: If the mailbox check request fails
+        :raises SuomiFiClientError: If the request is invalid (4xx)
+        :raises SuomiFiServerError: If the server fails (5xx)
+        :raises SuomiFiAPIError: If an unexpected non-2xx status is returned
         """
         active_ids = self.check_mailboxes([recipient_id])
         return recipient_id in active_ids
@@ -536,7 +583,9 @@ class SuomiFiClient:
             of Event objects and continuation_token is a string for pagination
             or None if no more events
         :rtype: tuple[list[Event], str | None]
-        :raises SuomiFiAPIError: If the events request fails
+        :raises SuomiFiClientError: If the request is invalid (4xx)
+        :raises SuomiFiServerError: If the server fails (5xx)
+        :raises SuomiFiAPIError: If an unexpected non-2xx status is returned
         """
         params = {"continuationToken": continuation_token} if continuation_token else {}
 
@@ -586,7 +635,9 @@ class SuomiFiClient:
         :param message_id: Suomi.fi message ID from events
         :returns: The received message
         :rtype: ReceivedMessage
-        :raises SuomiFiAPIError: If the message cannot be retrieved
+        :raises SuomiFiClientError: If the request is invalid (4xx)
+        :raises SuomiFiServerError: If the server fails (5xx)
+        :raises SuomiFiAPIError: If an unexpected non-2xx status is returned
         """
         logger.debug(f"Retrieving message {message_id}")
 
@@ -656,7 +707,9 @@ class SuomiFiClient:
         :param attachment_id: Attachment ID
         :returns: Raw attachment content as bytes
         :rtype: bytes
-        :raises SuomiFiAPIError: If the attachment cannot be retrieved
+        :raises SuomiFiClientError: If the request is invalid (4xx)
+        :raises SuomiFiServerError: If the server fails (5xx)
+        :raises SuomiFiAPIError: If an unexpected non-2xx status is returned
         """
         response = self.get(f"/v1/attachments/{attachment_id}")
 
@@ -677,7 +730,9 @@ class SuomiFiClient:
         :param filelike: File content as bytes or a binary file-like object
         :returns: Attachment ID to use in message attachment references
         :rtype: str
-        :raises SuomiFiAPIError: If the upload fails
+        :raises SuomiFiClientError: If the request is invalid (4xx)
+        :raises SuomiFiServerError: If the server fails (5xx)
+        :raises SuomiFiAPIError: If an unexpected non-2xx status is returned
         """
         logger.debug(f"Uploading attachment: {filename}")
 
