@@ -273,7 +273,7 @@ class SuomiFiClient:
         :param body: Message body content
         :param body_format: Body format (TEXT or MARKDOWN)
         :param recipient_id: Recipient ID (SSN or business ID)
-        :param service_id: Service ID, uses app_settings.SERVICE_ID
+        :param service_id: Service ID, uses ``SUOMIFI_SERVICE_ID`` from Django settings
             if not provided
         :param reply_to: Message ID to reply to (optional)
         :param attachment_ids: List of attachment IDs (optional)
@@ -357,7 +357,7 @@ class SuomiFiClient:
         :param recipient_address: Postal address for paper mail delivery
         :param sender_address: Sender's postal address for paper mail
         :param paper_mail_attachment_id: Attachment ID for paper mail (required)
-        :param service_id: Service ID, uses app_settings.SERVICE_ID
+        :param service_id: Service ID, uses ``SUOMIFI_SERVICE_ID`` from Django settings
             if not provided
         :param reply_to: Message ID to reply to (optional)
         :param electronic_attachment_ids: List of attachment IDs for electronic message
@@ -433,7 +433,8 @@ class SuomiFiClient:
         :param recipient_address: Recipient postal address
         :param sender_address: Sender postal address
         :param attachment_id: Attachment ID for the paper mail content
-        :param service_id: Service ID, uses app_settings.SERVICE_ID if not provided
+        :param service_id: Service ID, uses ``SUOMIFI_SERVICE_ID`` from Django settings
+            if not provided
         :param external_id: External ID for idempotency, generates UUID if not provided
         :param verifiable: Whether to send as verifiable message
         :returns: Tuple of (message_id, external_id) where message_id is the
