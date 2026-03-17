@@ -129,7 +129,18 @@ class SuomiFiClient:
                 response_body=safe_get_response_body(response),
             )
 
-    def login(self, username: str = "", password: str = ""):
+    def login(self, username: str = "", password: str = "") -> None:
+        """
+        Authenticate and store the session token.
+
+        :param username: API username, uses ``SUOMIFI_USERNAME`` from Django settings
+            if not provided
+        :param password: API password, uses ``SUOMIFI_PASSWORD`` from Django settings
+            if not provided
+        :raises SuomiFiClientError: If authentication fails (4xx)
+        :raises SuomiFiServerError: If the server fails (5xx)
+        :raises SuomiFiAPIError: If an unexpected non-2xx status is returned
+        """
         payload = AccessTokenRequestBody(
             username=username or app_settings.USERNAME,
             password=password or app_settings.PASSWORD,
@@ -155,6 +166,19 @@ class SuomiFiClient:
         logger.debug("Login successful")
 
     def change_password(self, current_password: str, new_password: str) -> None:
+        """
+        Change the current API password.
+
+        A new access token must be obtained after changing the password.
+
+        :param current_password: Current API password
+        :param new_password: New API password (min 32 characters, must contain
+            at least one lower case, upper case, number, and symbol character)
+        :raises ValueError: If not logged in (token not set)
+        :raises SuomiFiClientError: If the password change fails (4xx)
+        :raises SuomiFiServerError: If the server fails (5xx)
+        :raises SuomiFiAPIError: If an unexpected non-2xx status is returned
+        """
         if not self.token:
             raise ValueError(
                 "Cannot change password before logging in. Call login() first."
