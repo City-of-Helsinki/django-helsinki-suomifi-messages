@@ -301,8 +301,11 @@ class TestSuomiFiClientChangePassword:
     """Test SuomiFiClient password change functionality."""
 
     def test_change_password_success(self, client, requests_mock):
-        """Test successful password change."""
+        """Test successful password change clears token state."""
         client.token = "existing_token"
+        client.token_expiry = 3600
+        client.token_type = "Bearer"
+        client.session.headers["Authorization"] = "existing_token"
         requests_mock.post(
             client.url("v1/change-password"),
             json={},
@@ -316,6 +319,11 @@ class TestSuomiFiClientChangePassword:
             "newPassword": "new_pass",
             "accessToken": "existing_token",
         }
+        assert "Authorization" not in requests_mock.last_request.headers
+        assert client.token is None
+        assert client.token_expiry is None
+        assert client.token_type is None
+        assert "Authorization" not in client.session.headers
 
     def test_change_password_failure(self, client, requests_mock):
         """Test password change failure."""
