@@ -14,9 +14,11 @@ from suomifi_messages.errors import (
     SuomiFiServerError,
 )
 from suomifi_messages.schemas import (
+    AccessTokenRequestBody,
     Address,
     AttachmentReference,
     BodyFormat,
+    ChangePasswordRequestBody,
     ElectronicMessageRequestBody,
     ElectronicPart,
     EndUserId,
@@ -128,19 +130,19 @@ class SuomiFiClient:
             )
 
     def login(self, username: str = "", password: str = ""):
-        auth_params = {
-            "username": username or app_settings.USERNAME,
-            "password": password or app_settings.PASSWORD,
-        }
+        payload = AccessTokenRequestBody(
+            username=username or app_settings.USERNAME,
+            password=password or app_settings.PASSWORD,
+        )
 
-        logger.debug(f"Logging in with username: {auth_params['username']}")
+        logger.debug(f"Logging in with username: {payload.username}")
 
-        response = self.post("/v1/token", json=auth_params)
+        response = self.post("/v1/token", json=dataclass_to_dict(payload))
         self._raise_for_status(response, "Authentication failed")
 
         parsed_response = response.json()
 
-        # These are informational only, session header setup below
+        # These are informational only; session header setup below
         # is used for all authorized requests
         self.token = parsed_response["access_token"]
         self.token_expiry = parsed_response["expires_in"]
@@ -152,20 +154,23 @@ class SuomiFiClient:
 
         logger.debug("Login successful")
 
-    def change_password(self, current_password, new_password):
-        pw_change_request = {
-            "currentPassword": current_password,
-            "newPassword": new_password,
-            "accessToken": self.token,
-        }
+    def change_password(self, current_password: str, new_password: str) -> None:
+        if not self.token:
+            raise ValueError(
+                "Cannot change password before logging in. Call login() first."
+            )
+        payload = ChangePasswordRequestBody(
+            access_token=self.token,
+            current_password=current_password,
+            new_password=new_password,
+        )
 
         # Password change is a special case that does not use Authorization-header
         logger.debug("Changing password")
-        response = self.post("/v1/change-password", json=pw_change_request)
+        response = self.post("/v1/change-password", json=dataclass_to_dict(payload))
         self._raise_for_status(response, "Password change failed")
 
         logger.debug("Password changed successfully")
-        return response.json()
 
     def build_paper_mail_message(
         self,

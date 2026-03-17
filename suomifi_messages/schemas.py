@@ -398,3 +398,20 @@ class ReceivedMessage:
     created_at: datetime
     electronic: ReceivedElectronicMessage
     sender: MessageSender | None = None
+
+
+@dataclass
+class AccessTokenRequestBody:
+    """Request body for obtaining an authentication token via POST /v1/token."""
+
+    username: str
+    password: str
+
+
+@dataclass
+class ChangePasswordRequestBody:
+    """Request body for changing a password via POST /v1/change-password."""
+
+    access_token: str
+    current_password: str
+    new_password: str
