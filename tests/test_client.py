@@ -305,13 +305,12 @@ class TestSuomiFiClientChangePassword:
         client.token = "existing_token"
         requests_mock.post(
             client.url("v1/change-password"),
-            json={"status": "Password changed successfully"},
+            json={},
             status_code=200,
         )
 
-        result = client.change_password("old_pass", "new_pass")
+        client.change_password("old_pass", "new_pass")
 
-        assert result == {"status": "Password changed successfully"}
         assert requests_mock.last_request.json() == {
             "currentPassword": "old_pass",
             "newPassword": "new_pass",
@@ -327,8 +326,13 @@ class TestSuomiFiClientChangePassword:
             status_code=400,
         )
 
-        with pytest.raises(SuomiFiAPIError, match="Password change failed"):
+        with pytest.raises(SuomiFiClientError, match="Password change failed"):
             client.change_password("wrong_pass", "new_pass")
+
+    def test_change_password_without_login(self, client):
+        """Test that change_password raises ValueError if not logged in."""
+        with pytest.raises(ValueError, match="login"):
+            client.change_password("old_pass", "new_pass")
 
 
 class TestSuomiFiClientCheckMailboxes:
