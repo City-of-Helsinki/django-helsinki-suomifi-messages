@@ -189,12 +189,23 @@ class SuomiFiClient:
             new_password=new_password,
         )
 
-        # Password change is a special case that does not use Authorization-header
+        # /v1/change-password uses accessToken in the body, not the Authorization
+        # header. Override it to None so requests omits it for this call.
         logger.debug("Changing password")
-        response = self.post("/v1/change-password", json=dataclass_to_dict(payload))
+        response = self.post(
+            "/v1/change-password",
+            json=dataclass_to_dict(payload),
+            headers={"Authorization": None},
+        )
         self._raise_for_status(response, "Password change failed")
 
-        logger.debug("Password changed successfully")
+        # Invalidate token.
+        self.token = None
+        self.token_expiry = None
+        self.token_type = None
+        self.session.headers.pop("Authorization", None)
+
+        logger.debug("Password changed successfully, token invalidated")
 
     def build_paper_mail_message(
         self,
