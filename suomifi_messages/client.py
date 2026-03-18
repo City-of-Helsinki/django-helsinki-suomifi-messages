@@ -608,7 +608,7 @@ class SuomiFiClient:
 
     def get_events(
         self, continuation_token: str | None = None
-    ) -> tuple[list[Event], str | None]:
+    ) -> tuple[list[Event], str]:
         """
         Retrieve events related to messages you have sent or received.
 
@@ -620,8 +620,8 @@ class SuomiFiClient:
             from the previous response to retrieve the next batch of events.
         :returns: Tuple of (events, continuation_token) where events is a list
             of Event objects and continuation_token is a string for pagination
-            or None if no more events
-        :rtype: tuple[list[Event], str | None]
+            (always present, even when there are no more events)
+        :rtype: tuple[list[Event], str]
         :raises SuomiFiClientError: If the request is invalid (4xx)
         :raises SuomiFiServerError: If the server fails (5xx)
         :raises SuomiFiAPIError: If an unexpected non-2xx status is returned
@@ -662,7 +662,7 @@ class SuomiFiClient:
                 )
             )
 
-        return events, response_data.get("continuationToken")
+        return events, response_data["continuationToken"]
 
     def get_message(self, message_id: int) -> ReceivedMessage:
         """

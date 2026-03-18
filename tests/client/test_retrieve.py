@@ -87,7 +87,7 @@ def test_get_events_with_continuation(client, requests_mock):
                     },
                 }
             ],
-            "continuationToken": None,
+            "continuationToken": "next_token_789",
         },
         status_code=200,
     )
@@ -111,7 +111,7 @@ def test_get_events_with_continuation(client, requests_mock):
             ),
         ),
     ]
-    assert continuation_token is None
+    assert continuation_token == "next_token_789"
 
 
 def test_get_events_with_unknown_event_type(client, requests_mock):
@@ -128,7 +128,7 @@ def test_get_events_with_unknown_event_type(client, requests_mock):
                     },
                 },
             ],
-            "continuationToken": None,
+            "continuationToken": "token_abc",
         },
         status_code=200,
     )
@@ -137,7 +137,7 @@ def test_get_events_with_unknown_event_type(client, requests_mock):
 
     assert len(events) == 1
     assert events[0].type == "Unknown type"
-    assert continuation_token is None
+    assert continuation_token == "token_abc"
 
 
 def test_get_events_with_empty_events_list(client, requests_mock):
@@ -145,7 +145,7 @@ def test_get_events_with_empty_events_list(client, requests_mock):
         client.url("v2/events"),
         json={
             "events": [],
-            "continuationToken": None,
+            "continuationToken": "token_empty",
         },
         status_code=200,
     )
@@ -153,7 +153,7 @@ def test_get_events_with_empty_events_list(client, requests_mock):
     events, continuation_token = client.get_events()
 
     assert events == []
-    assert continuation_token is None
+    assert continuation_token == "token_empty"
 
 
 def test_get_events_raises_on_error(client, requests_mock):
