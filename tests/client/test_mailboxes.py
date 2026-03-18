@@ -27,7 +27,11 @@ def test_check_mailboxes_returns_active_ids(
     """Test mailbox check with various response scenarios."""
     requests_mock.post(
         client.url("v1/mailboxes/active"),
-        json={"endUsersWithActiveMailbox": [{"id": id} for id in expected_result]},
+        json={
+            "endUsersWithActiveMailbox": [
+                {"id": user_id} for user_id in expected_result
+            ]
+        },
         status_code=200,
     )
 
@@ -35,7 +39,7 @@ def test_check_mailboxes_returns_active_ids(
 
     assert result == expected_result
     assert requests_mock.last_request.json() == {
-        "endUsers": [{"id": id} for id in input_ids]
+        "endUsers": [{"id": user_id} for user_id in input_ids]
     }
 
 
