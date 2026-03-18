@@ -1,5 +1,5 @@
 class SuomiFiError(Exception):
-    pass
+    """Base exception for all Suomi.fi Messages errors."""
 
 
 class SuomiFiAPIError(SuomiFiError):
