@@ -23,7 +23,6 @@ from suomifi_messages.schemas import (
 
 @pytest.mark.parametrize("body_format", [BodyFormat.TEXT, BodyFormat.MARKDOWN])
 def test_build_electronic_message_with_body_format(client, body_format):
-    """Build electronic message with different body formats."""
     electronic_msg = client.build_electronic_message(
         title="Test Title",
         body="Test Body",
@@ -54,7 +53,6 @@ def test_build_electronic_message_with_body_format(client, body_format):
 
 
 def test_build_electronic_message_with_verifiable(client):
-    """Build verifiable electronic message."""
     electronic_msg = client.build_electronic_message(
         title="Test Title",
         body="Test Body",
@@ -85,7 +83,6 @@ def test_build_electronic_message_with_verifiable(client):
 
 
 def test_build_electronic_message_with_reply_allowed(client):
-    """Build electronic message with replies allowed."""
     electronic_msg = client.build_electronic_message(
         title="Test Title",
         body="Test Body",
@@ -116,7 +113,6 @@ def test_build_electronic_message_with_reply_allowed(client):
 
 
 def test_build_electronic_message_with_no_reminders(client):
-    """Build electronic message with reminders disabled."""
     electronic_msg = client.build_electronic_message(
         title="Test Title",
         body="Test Body",
@@ -147,7 +143,6 @@ def test_build_electronic_message_with_no_reminders(client):
 
 
 def test_build_electronic_message_with_attachments(client):
-    """Build electronic message with attachments."""
     electronic_msg = client.build_electronic_message(
         title="Test Title",
         body="Test Body",
@@ -181,7 +176,6 @@ def test_build_electronic_message_with_attachments(client):
 
 
 def test_build_electronic_message_with_reply_to(client):
-    """Build electronic message as a reply."""
     electronic_msg = client.build_electronic_message(
         title="Re: Test Title",
         body="Reply Body",
@@ -215,7 +209,6 @@ def test_build_electronic_message_with_reply_to(client):
 def test_build_paper_mail_missing_credentials_raises_error(
     client, settings, recipient_address, sender_address
 ):
-    """Verify error is raised when Posti credentials are not configured."""
     settings.SUOMIFI_POSTI_EMAIL = ""
     settings.SUOMIFI_POSTI_USERNAME = ""
     settings.SUOMIFI_POSTI_PASSWORD = ""
@@ -243,7 +236,6 @@ def test_build_paper_mail_with_verifiable(
     verifiable,
     expected_service_type,
 ):
-    """Build paper mail with and without verifiable flag."""
     paper_mail = client.build_paper_mail_message(
         recipient_address=recipient_address,
         sender_address=sender_address,
@@ -278,7 +270,6 @@ def test_build_paper_mail_with_verifiable(
 def test_build_paper_mail_with_additional_name(
     client, recipient_address, sender_address
 ):
-    """Build paper mail with additional address line."""
     # Create a modified address with additional_name
     recipient_with_co = Address(
         name=recipient_address.name,

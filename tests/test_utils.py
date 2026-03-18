@@ -7,7 +7,6 @@ from suomifi_messages.utils import parse_iso_datetime, safe_get_response_body
 
 
 def test_safe_get_response_body_returns_dict_for_valid_json():
-    """Test that valid JSON is returned as a dict."""
     response = Mock()
     response.json.return_value = {"status": "ok", "code": 200}
 
@@ -18,7 +17,6 @@ def test_safe_get_response_body_returns_dict_for_valid_json():
 
 
 def test_safe_get_response_body_returns_text_on_json_parse_failure():
-    """Test that text is returned when JSON parsing fails."""
     response = Mock()
     response.json.side_effect = ValueError("Invalid JSON")
     response.text = "<html>Error page</html>"
@@ -50,7 +48,6 @@ def test_safe_get_response_body_returns_text_on_json_parse_failure():
     ],
 )
 def test_parse_iso_datetime(iso_string, expected):
-    """Test parsing various ISO 8601 datetime formats."""
     result = parse_iso_datetime(iso_string)
 
     assert result == expected

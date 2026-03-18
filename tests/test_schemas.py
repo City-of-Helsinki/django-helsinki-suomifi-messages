@@ -66,14 +66,12 @@ class ComplexItem:
     ],
 )
 def test_to_camel_case(snake_case, expected_camel_case):
-    """Test snake_case to camelCase conversion."""
     result = to_camel_case(snake_case)
 
     assert result == expected_camel_case
 
 
 def test_camel_case_dict_factory_converts_keys():
-    """Test that dict factory converts snake_case keys to camelCase."""
     fields = [
         ("first_name", "John"),
         ("last_name", "Doe"),
@@ -90,7 +88,6 @@ def test_camel_case_dict_factory_converts_keys():
 
 
 def test_camel_case_dict_factory_omits_none_values():
-    """Test that dict factory omits None values."""
     fields = [
         ("name", "Test"),
         ("optional_field", None),
@@ -107,14 +104,12 @@ def test_camel_case_dict_factory_omits_none_values():
 
 
 def test_camel_case_dict_factory_empty_fields():
-    """Test dict factory with empty fields list."""
     result = camel_case_dict_factory([])
 
     assert result == {}
 
 
 def test_camel_case_dict_factory_preserves_value_types():
-    """Test that dict factory preserves different value types."""
     fields = [
         ("string_val", "text"),
         ("int_val", 42),
@@ -135,7 +130,6 @@ def test_camel_case_dict_factory_preserves_value_types():
 
 
 def test_dataclass_to_dict_simple():
-    """Test converting dataclass to dict with snake_case to camelCase."""
     obj = SimpleItem(item_id="test-123")
 
     result = dataclass_to_dict(obj)
@@ -144,7 +138,6 @@ def test_dataclass_to_dict_simple():
 
 
 def test_dataclass_to_dict_omits_none():
-    """Test that None values are omitted from output."""
     obj = ItemWithOptionals(
         name="Test",
         street_address="Street 1",
@@ -158,7 +151,6 @@ def test_dataclass_to_dict_omits_none():
 
 
 def test_dataclass_to_dict_nested_list():
-    """Test conversion of lists containing dataclasses."""
     nested_items = [
         SimpleItem(item_id="item-1"),
         SimpleItem(item_id="item-2"),
@@ -181,7 +173,6 @@ def test_dataclass_to_dict_nested_list():
 
 
 def test_dataclass_to_dict_serializes_enums():
-    """Test that enum values are serialized to their string values."""
     electronic = ElectronicPart(
         title="Test",
         body="Body",

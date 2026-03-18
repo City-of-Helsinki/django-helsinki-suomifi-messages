@@ -4,7 +4,6 @@ from suomifi_messages.errors import SuomiFiAPIError, SuomiFiClientError
 
 
 def test_login_success(client, requests_mock):
-    """Test successful login uses Django settings and parses the response."""
     requests_mock.post(
         client.url("v1/token"),
         json={
@@ -29,7 +28,6 @@ def test_login_success(client, requests_mock):
 
 
 def test_login_with_explicit_credentials(client, requests_mock):
-    """Test login with explicitly provided credentials."""
     requests_mock.post(
         client.url("v1/token"),
         json={
@@ -50,7 +48,6 @@ def test_login_with_explicit_credentials(client, requests_mock):
 
 
 def test_login_failure_non_200_status(client, requests_mock):
-    """Test login failure with non-200 status code."""
     requests_mock.post(
         client.url("v1/token"),
         json={"error": "Invalid credentials"},
@@ -62,7 +59,6 @@ def test_login_failure_non_200_status(client, requests_mock):
 
 
 def test_change_password_success(client, requests_mock):
-    """Test successful password change clears token state."""
     client.token = "existing_token"
     client.token_expiry = 3600
     client.token_type = "Bearer"
@@ -88,7 +84,6 @@ def test_change_password_success(client, requests_mock):
 
 
 def test_change_password_failure(client, requests_mock):
-    """Test password change failure."""
     client.token = "existing_token"
     requests_mock.post(
         client.url("v1/change-password"),
@@ -101,6 +96,5 @@ def test_change_password_failure(client, requests_mock):
 
 
 def test_change_password_without_login(client):
-    """Test that change_password raises ValueError if not logged in."""
     with pytest.raises(ValueError, match="login"):
         client.change_password("old_pass", "new_pass")
