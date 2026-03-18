@@ -51,8 +51,8 @@ test = [
 all = ["suomifi-messages[test]"]
 
 [project.urls]
-Homepage = "https://github.com/City-of-Helsinki/"
-Issues = "https://github.com/City-of-Helsinki//issues"
+Homepage = "https://github.com/City-of-Helsinki/django-helsinki-suomifi-messages"
+Issues = "https://github.com/City-of-Helsinki/django-helsinki-suomifi-messages/issues"
 
 [tool.coverage.run]
 source = ["suomifi_messages"]
