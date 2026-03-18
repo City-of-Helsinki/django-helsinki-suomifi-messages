@@ -24,7 +24,6 @@ from suomifi_messages.errors import SuomiFiAPIError
 def test_check_mailboxes_returns_active_ids(
     client, requests_mock, input_ids, expected_result
 ):
-    """Test mailbox check with various response scenarios."""
     requests_mock.post(
         client.url("v1/mailboxes/active"),
         json={
@@ -44,7 +43,6 @@ def test_check_mailboxes_returns_active_ids(
 
 
 def test_check_mailboxes_error(client, requests_mock):
-    """Test mailbox check request failure raises SuomiFiAPIError."""
     requests_mock.post(
         client.url("v1/mailboxes/active"),
         json={"reason": "Bad request"},
@@ -56,7 +54,6 @@ def test_check_mailboxes_error(client, requests_mock):
 
 
 def test_check_mailbox_active(client, requests_mock):
-    """Test checking mailbox that is active returns True."""
     requests_mock.post(
         client.url("v1/mailboxes/active"),
         json={"endUsersWithActiveMailbox": [{"id": "123456-789A"}]},
@@ -70,7 +67,6 @@ def test_check_mailbox_active(client, requests_mock):
 
 
 def test_check_mailbox_inactive(client, requests_mock):
-    """Test checking mailbox that is inactive returns False."""
     requests_mock.post(
         client.url("v1/mailboxes/active"),
         json={"endUsersWithActiveMailbox": []},
@@ -84,7 +80,6 @@ def test_check_mailbox_inactive(client, requests_mock):
 
 
 def test_check_mailbox_error(client, requests_mock):
-    """Test single mailbox check request failure raises SuomiFiAPIError."""
     requests_mock.post(
         client.url("v1/mailboxes/active"),
         json={"reason": "Bad request"},

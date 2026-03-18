@@ -8,7 +8,6 @@ from suomifi_messages.schemas import BodyFormat
 
 
 def test_send_electronic_message_success(client, requests_mock, mocker):
-    """Test sending electronic message successfully."""
     # Mock builder to return simple structure for assertion
     mock_electronic = {"title": "Test", "body": "Content"}
 
@@ -45,7 +44,6 @@ def test_send_electronic_message_success(client, requests_mock, mocker):
 
 
 def test_send_electronic_message_with_custom_ids(client, requests_mock):
-    """Test sending electronic message with custom service and recipient IDs."""
     requests_mock.post(
         client.url("v2/messages/electronic"),
         json={"messageId": 12345},
@@ -72,7 +70,6 @@ def test_send_electronic_message_with_custom_ids(client, requests_mock):
 
 
 def test_send_electronic_message_failure(client, requests_mock):
-    """Test electronic message send failure."""
     requests_mock.post(
         client.url("v2/messages/electronic"),
         json={"error": "Invalid message format"},
@@ -89,7 +86,6 @@ def test_send_electronic_message_failure(client, requests_mock):
 
 
 def test_send_electronic_message_missing_service_id(settings):
-    """Test that ValueError is raised when service_id is missing."""
     settings.SUOMIFI_SERVICE_ID = ""
 
     client = SuomiFiClient()
@@ -107,7 +103,6 @@ def test_send_electronic_message_missing_service_id(settings):
 def test_send_multichannel_message_success(
     client, requests_mock, recipient_address, sender_address, mocker
 ):
-    """Test sending multichannel message successfully."""
     # Mock builders to return simple structures for assertion
     mock_electronic = {"title": "Test", "body": "Content"}
     mock_paper = {"attachments": [{"attachmentId": "att_1"}]}
@@ -152,7 +147,6 @@ def test_send_multichannel_message_success(
 def test_send_multichannel_message_with_custom_ids(
     client, requests_mock, recipient_address, sender_address
 ):
-    """Test sending multichannel message with custom service and recipient IDs."""
     requests_mock.post(
         client.url("v2/messages"),
         json={"messageId": 12345},
@@ -187,7 +181,6 @@ def test_send_multichannel_message_with_custom_ids(
 def test_send_multichannel_message_missing_service_id(
     settings, recipient_address, sender_address
 ):
-    """Test that ValueError is raised when service_id is missing."""
     settings.SUOMIFI_SERVICE_ID = ""
 
     client = SuomiFiClient()
@@ -208,7 +201,6 @@ def test_send_multichannel_message_missing_service_id(
 def test_send_multichannel_message_failure(
     client, requests_mock, recipient_address, sender_address
 ):
-    """Test multichannel message send failure."""
     requests_mock.post(
         client.url("v2/messages"),
         json={"error": "Invalid message format"},
@@ -230,7 +222,6 @@ def test_send_multichannel_message_failure(
 def test_send_paper_mail_without_id_success(
     client, requests_mock, recipient_address, sender_address, mocker
 ):
-    """Test sending paper mail without ID successfully."""
     mock_paper = {"attachments": [{"attachmentId": "att_1"}]}
     mocker.patch.object(client, "build_paper_mail_message", return_value=mock_paper)
 
@@ -261,7 +252,6 @@ def test_send_paper_mail_without_id_success(
 def test_send_paper_mail_without_id_with_custom_ids(
     client, requests_mock, recipient_address, sender_address
 ):
-    """Test sending paper mail without ID with custom service and external IDs."""
     requests_mock.post(
         client.url("v2/paper-mail-without-id"),
         json={"messageId": 12345},
@@ -288,7 +278,6 @@ def test_send_paper_mail_without_id_with_custom_ids(
 def test_send_paper_mail_without_id_missing_service_id(
     settings, recipient_address, sender_address
 ):
-    """Test that ValueError is raised when service_id is missing."""
     settings.SUOMIFI_SERVICE_ID = ""
 
     client = SuomiFiClient()
@@ -305,7 +294,6 @@ def test_send_paper_mail_without_id_missing_service_id(
 def test_send_paper_mail_without_id_failure(
     client, requests_mock, recipient_address, sender_address
 ):
-    """Test paper mail without ID send failure."""
     requests_mock.post(
         client.url("v2/paper-mail-without-id"),
         json={"error": "Invalid message format"},

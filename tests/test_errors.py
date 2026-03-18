@@ -8,7 +8,6 @@ from suomifi_messages.errors import (
 
 
 def test_suomifi_error_is_exception():
-    """Test that SuomiFiError is an Exception."""
     error = SuomiFiError("Test error")
 
     assert isinstance(error, Exception)
@@ -16,7 +15,6 @@ def test_suomifi_error_is_exception():
 
 
 def test_suomifi_api_error():
-    """Test SuomiFiAPIError basic functionality."""
     error = SuomiFiAPIError("Request failed", response_body={"error": "details"})
 
     assert isinstance(error, SuomiFiError)
@@ -25,7 +23,6 @@ def test_suomifi_api_error():
 
 
 def test_suomifi_client_error():
-    """Test SuomiFiClientError basic functionality."""
     error = SuomiFiClientError("Bad request", response_body={"error": "invalid"})
 
     assert isinstance(error, SuomiFiAPIError)
@@ -34,7 +31,6 @@ def test_suomifi_client_error():
 
 
 def test_suomifi_duplicate_message_error():
-    """Test SuomiFiDuplicateMessageError basic functionality."""
     error = SuomiFiDuplicateMessageError(
         "Duplicate", message_id=12345, response_body={"messageId": 12345}
     )
@@ -47,7 +43,6 @@ def test_suomifi_duplicate_message_error():
 
 
 def test_suomifi_server_error():
-    """Test SuomiFiServerError basic functionality."""
     error = SuomiFiServerError("Server error", response_body={"error": "internal"})
 
     assert isinstance(error, SuomiFiAPIError)

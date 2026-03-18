@@ -17,7 +17,6 @@ from suomifi_messages.schemas import (
 
 
 def test_get_events_without_continuation(client, requests_mock):
-    """Test getting events without continuation token."""
     requests_mock.get(
         client.url("v2/events"),
         json={
@@ -75,7 +74,6 @@ def test_get_events_without_continuation(client, requests_mock):
 
 
 def test_get_events_with_continuation(client, requests_mock):
-    """Test getting events with continuation token."""
     requests_mock.get(
         client.url("v2/events"),
         json={
@@ -117,7 +115,6 @@ def test_get_events_with_continuation(client, requests_mock):
 
 
 def test_get_events_with_unknown_event_type(client, requests_mock):
-    """Test that unknown event types are handled gracefully as strings."""
     requests_mock.get(
         client.url("v2/events"),
         json={
@@ -144,7 +141,6 @@ def test_get_events_with_unknown_event_type(client, requests_mock):
 
 
 def test_get_events_with_empty_events_list(client, requests_mock):
-    """Test that empty events list is handled correctly."""
     requests_mock.get(
         client.url("v2/events"),
         json={
@@ -161,7 +157,6 @@ def test_get_events_with_empty_events_list(client, requests_mock):
 
 
 def test_get_events_raises_on_error(client, requests_mock):
-    """Test that get_events raises on HTTP error."""
     requests_mock.get(
         client.url("v2/events"),
         status_code=500,
@@ -172,7 +167,6 @@ def test_get_events_raises_on_error(client, requests_mock):
 
 
 def test_get_message_success(client, requests_mock):
-    """Test successful message retrieval returns a parsed ReceivedMessage."""
     requests_mock.get(
         client.url("v2/messages/12345"),
         json={
@@ -217,7 +211,6 @@ def test_get_message_success(client, requests_mock):
 
 
 def test_get_message_with_attachment_and_thread(client, requests_mock):
-    """Test message retrieval correctly parses attachments and thread info."""
     requests_mock.get(
         client.url("v2/messages/12345"),
         json={
@@ -263,7 +256,6 @@ def test_get_message_with_attachment_and_thread(client, requests_mock):
 
 
 def test_get_message_with_person_on_behalf(client, requests_mock):
-    """Test message retrieval parses person sending on behalf of mailbox owner."""
     requests_mock.get(
         client.url("v2/messages/12345"),
         json={
@@ -301,7 +293,6 @@ def test_get_message_with_person_on_behalf(client, requests_mock):
 
 
 def test_get_message_with_thread_without_external_id(client, requests_mock):
-    """Test message retrieval with a thread that has no threadExternalId."""
     requests_mock.get(
         client.url("v2/messages/12345"),
         json={
@@ -330,7 +321,6 @@ def test_get_message_with_thread_without_external_id(client, requests_mock):
 
 
 def test_get_message_raises_on_error(client, requests_mock):
-    """Test that get_message raises SuomiFiAPIError on HTTP error."""
     requests_mock.get(
         client.url("v2/messages/99999"),
         status_code=404,
