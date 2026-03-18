@@ -15,7 +15,6 @@ keywords = [
 classifiers = [
     "Environment :: Web Environment",
     "Framework :: Django",
-    "Framework :: Django :: 4.2",
     "Framework :: Django :: 5.2",
     "Framework :: Django :: 6.0",
     "Intended Audience :: Developers",
@@ -33,7 +32,7 @@ classifiers = [
 ]
 license = "MIT"
 license-files = ["LICENSE"]
-dependencies = ["requests>=2.32.5","django>=4.2",]
+dependencies = ["requests>=2.32.5","django>=5.2",]
 
 [project.optional-dependencies]
 test = [
@@ -64,7 +63,7 @@ packages = ["suomifi_messages"]
 
 [tool.hatch.envs.default]
 dependencies = [
-    "django~=4.2",
+    "django~=5.2",
     "pre-commit",
 ]
 features = ["all"]
@@ -84,10 +83,6 @@ features = ["all"]
 matrix-name-format = "dj{value}"
 parallel = false
 randomize = true
-
-[[tool.hatch.envs.hatch-test.matrix]]
-python = ["3.10", "3.11", "3.12"]
-django = ["4.2"]
 
 [[tool.hatch.envs.hatch-test.matrix]]
 python = ["3.10", "3.11", "3.12", "3.13", "3.14"]
