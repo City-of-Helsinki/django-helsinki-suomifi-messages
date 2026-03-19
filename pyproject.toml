@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "suomifi-messages"
+name = "django-helsinki-suomifi-messages"
 version = "0.0.0"
 authors = [{ name = "City of Helsinki", email = "dev@hel.fi" }]
 description = "Suomi.fi messages for City of Helsinki Django apps"
@@ -48,7 +48,7 @@ test = [
     "pytest-xdist[psutil]",
     "requests-mock",
 ]
-all = ["suomifi-messages[test]"]
+all = ["django-helsinki-suomifi-messages[test]"]
 
 [project.urls]
 Homepage = "https://github.com/City-of-Helsinki/django-helsinki-suomifi-messages"
