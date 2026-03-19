@@ -32,9 +32,7 @@ class SuomiFiSettings:
     def SERVICE_ID(self) -> str:
         return self._setting("SERVICE_ID", "")
 
-    # Posti Messaging Oy credentials for TKJ service.
-    # Organizations receive these during paper mail deployment. See:
-    # https://kehittajille.suomi.fi/services/messages/deployment/deployment-of-the-printing-enveloping-and-distribution-service
+    # Posti Messaging Oy credentials
 
     @property
     def POSTI_EMAIL(self) -> str:
