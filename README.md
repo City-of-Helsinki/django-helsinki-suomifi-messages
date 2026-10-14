@@ -28,7 +28,7 @@ Suomi.fi Messages client for City of Helsinki Django apps. See the
 
 ## Installation
 
-Requires Python 3.11+ and Django 5.2+.
+Requires Python 3.11+ and Django 5.2 or 6.0.
 
 ```
 pip install django-helsinki-suomifi-messages
