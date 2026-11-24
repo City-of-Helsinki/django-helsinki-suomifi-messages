@@ -1,3 +1,4 @@
+{% raw %}
 # This file is synced from City-of-Helsinki/.github and should not be edited directly
 name: Create release & publish to PyPI
 # For manual runs:
@@ -55,10 +56,11 @@ jobs:
     needs:
       - build
     # Run publish job if an artifact was uploaded
-    if: ${{ needs.build.outputs.artifact_name }}
+    if: ${{ needs.build.outputs.artifact_name }}{% endraw %}
     environment:
       name: pypi
-      url: https://pypi.org/p/${{ github.event.repository.name }}
+      url: https://pypi.org/p/{{ pypi_project_name or "${{ github.event.repository.name }}"}}
+{% raw %}
     permissions:
       id-token: write  # mandatory for trusted publishing
     steps:
@@ -69,3 +71,4 @@ jobs:
           path: dist/
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+{% endraw %}
