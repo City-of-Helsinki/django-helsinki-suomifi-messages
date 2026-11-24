@@ -58,7 +58,7 @@ jobs:
     if: ${{ needs.build.outputs.artifact_name }}
     environment:
       name: pypi
-      url: https://pypi.org/p/${{ github.event.repository.name }}
+      url: https://pypi.org/p/{{ pypi_project_name or "${{ github.event.repository.name }}"}}
     permissions:
       id-token: write  # mandatory for trusted publishing
     steps:
